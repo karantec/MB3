@@ -1,410 +1,84 @@
 // models/IdManagement.model.js
-const sql = require("mssql");
 
-class IdManagement {
-  /**
-   * Create a new ID record
-   * @param {Object} idData - ID data
-   * @param {string} idData.visitorName - Visitor's full name
-   * @param {string} idData.phoneNumber - Visitor's phone number
-   * @param {string} idData.email - Visitor's email
-   * @param {string} idData.company - Company name
-   * @param {string} idData.purpose - Purpose of visit
-   * @param {string} idData.idType - ID type (Visitor/Employee/Contractor)
-   * @param {string} idData.idNumber - ID card number
-   * @param {Date} idData.validFrom - Valid from date
-   * @param {Date} idData.validUntil - Valid until date
-   * @param {number} idData.createdBy - User ID who created
-   * @param {string} idData.status - Status (Active/Expired/Revoked)
-   * @returns {Promise<Object>} Created ID object
-   */
-  static async create(idData) {
-    try {
-      const {
-        visitorName,
-        phoneNumber,
-        email,
-        company,
-        purpose,
-        idType = "Visitor",
-        idNumber,
-        validFrom,
-        validUntil,
-        createdBy,
-        status = "Active",
-      } = idData;
+const mongoose = require("mongoose");
 
-      // Validate required fields
-      if (!visitorName) {
-        throw new Error("Visitor name is required");
-      }
-      if (!phoneNumber) {
-        throw new Error("Phone number is required");
-      }
+const idManagementSchema = new mongoose.Schema(
+  {
+    visitorName: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-      console.log("📝 Creating ID record:", {
-        visitorName,
-        phoneNumber,
-        company,
-      });
+    phoneNumber: {
+      type: String,
+      required: true,
+      trim: true,
+    },
 
-      const pool = await sql.connect();
-      const result = await pool
-        .request()
-        .input("visitorName", sql.NVarChar, visitorName)
-        .input("phoneNumber", sql.NVarChar, phoneNumber)
-        .input("email", sql.NVarChar, email || null)
-        .input("company", sql.NVarChar, company || null)
-        .input("purpose", sql.NVarChar, purpose || null)
-        .input("idType", sql.NVarChar, idType)
-        .input("idNumber", sql.NVarChar, idNumber || null)
-        .input("validFrom", sql.DateTime, validFrom || new Date())
-        .input("validUntil", sql.DateTime, validUntil || null)
-        .input("createdBy", sql.Int, createdBy || null)
-        .input("status", sql.NVarChar, status).query(`
-                    INSERT INTO IdManagement (
-                        VisitorName,
-                        PhoneNumber,
-                        Email,
-                        Company,
-                        Purpose,
-                        IdType,
-                        IdNumber,
-                        ValidFrom,
-                        ValidUntil,
-                        CreatedBy,
-                        Status
-                    )
-                    OUTPUT INSERTED.*
-                    VALUES (
-                        @visitorName,
-                        @phoneNumber,
-                        @email,
-                        @company,
-                        @purpose,
-                        @idType,
-                        @idNumber,
-                        @validFrom,
-                        @validUntil,
-                        @createdBy,
-                        @status
-                    )
-                `);
+    email: {
+      type: String,
+      trim: true,
+      lowercase: true,
+      default: "",
+    },
 
-      console.log("✅ ID record created successfully");
-      return result.recordset[0];
-    } catch (err) {
-      console.error("Error creating ID record:", err);
-      throw err;
-    }
-  }
+    company: {
+      type: String,
+      default: "",
+    },
 
-  /**
-   * Get all ID records with filters
-   * @param {Object} filters - Filter options
-   * @param {string} filters.search - Search term
-   * @param {string} filters.status - Filter by status
-   * @param {string} filters.idType - Filter by ID type
-   * @param {string} filters.sortBy - Sort by column
-   * @param {string} filters.sortOrder - Sort order (ASC/DESC)
-   * @returns {Promise<Array>} Array of ID objects
-   */
-  static async findAll(filters = {}) {
-    try {
-      let query = `
-                SELECT 
-                    i.*,
-                    u.FullName as CreatedByName
-                FROM IdManagement i
-                LEFT JOIN Users u ON i.CreatedBy = u.UserID
-                WHERE i.IsActive = 1
-            `;
+    purpose: {
+      type: String,
+      default: "",
+    },
 
-      const request = new sql.Request();
+    idType: {
+      type: String,
+      enum: ["Visitor", "Employee", "Contractor"],
+      default: "Visitor",
+    },
 
-      // Add search filter
-      if (filters.search) {
-        query += `
-                    AND (
-                        i.VisitorName LIKE @search 
-                        OR i.PhoneNumber LIKE @search
-                        OR i.Email LIKE @search
-                        OR i.Company LIKE @search
-                        OR i.IdNumber LIKE @search
-                    )
-                `;
-        request.input("search", sql.NVarChar, `%${filters.search}%`);
-      }
+    idNumber: {
+      type: String,
+      default: "",
+    },
 
-      // Add status filter
-      if (filters.status) {
-        query += ` AND i.Status = @status`;
-        request.input("status", sql.NVarChar, filters.status);
-      }
+    validFrom: {
+      type: Date,
+      default: Date.now,
+    },
 
-      // Add ID type filter
-      if (filters.idType) {
-        query += ` AND i.IdType = @idType`;
-        request.input("idType", sql.NVarChar, filters.idType);
-      }
+    validUntil: {
+      type: Date,
+      default: null,
+    },
 
-      // Add sorting
-      const validSortColumns = [
-        "VisitorName",
-        "PhoneNumber",
-        "Company",
-        "IdType",
-        "Status",
-        "CreatedAt",
-      ];
-      const sortColumn = validSortColumns.includes(filters.sortBy)
-        ? filters.sortBy
-        : "CreatedAt";
-      const sortOrder = filters.sortOrder === "DESC" ? "DESC" : "DESC";
-      query += ` ORDER BY i.${sortColumn} ${sortOrder}`;
+    createdBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
 
-      console.log("📊 Executing ID query with filters:", filters);
+    status: {
+      type: String,
+      enum: ["Active", "Expired", "Revoked"],
+      default: "Active",
+    },
 
-      const pool = await sql.connect();
-      const result = await request.query(query);
-      return result.recordset;
-    } catch (err) {
-      console.error("Error finding ID records:", err);
-      throw err;
-    }
-  }
+    isActive: {
+      type: Boolean,
+      default: true,
+    },
 
-  /**
-   * Find ID record by ID
-   * @param {number} id - ID record ID
-   * @returns {Promise<Object|null>} ID object or null
-   */
-  static async findById(id) {
-    try {
-      const pool = await sql.connect();
-      const result = await pool.request().input("id", sql.Int, id).query(`
-                    SELECT 
-                        i.*,
-                        u.FullName as CreatedByName
-                    FROM IdManagement i
-                    LEFT JOIN Users u ON i.CreatedBy = u.UserID
-                    WHERE i.IdManagementID = @id AND i.IsActive = 1
-                `);
-      return result.recordset[0] || null;
-    } catch (err) {
-      console.error("Error finding ID record by ID:", err);
-      throw err;
-    }
-  }
+    deletedAt: {
+      type: Date,
+      default: null,
+    },
+  },
+  {
+    timestamps: true,
+  },
+);
 
-  /**
-   * Find ID records by phone number
-   * @param {string} phoneNumber - Phone number
-   * @returns {Promise<Array>} Array of ID objects
-   */
-  static async findByPhone(phoneNumber) {
-    try {
-      const pool = await sql.connect();
-      const result = await pool
-        .request()
-        .input("phoneNumber", sql.NVarChar, phoneNumber).query(`
-                    SELECT * FROM IdManagement 
-                    WHERE PhoneNumber = @phoneNumber AND IsActive = 1
-                    ORDER BY CreatedAt DESC
-                `);
-      return result.recordset;
-    } catch (err) {
-      console.error("Error finding ID records by phone:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Update ID record
-   * @param {number} id - ID record ID
-   * @param {Object} updateData - Fields to update
-   * @returns {Promise<Object|null>} Updated ID object or null
-   */
-  static async update(id, updateData) {
-    try {
-      const updates = {};
-
-      // Map field names
-      if (updateData.visitorName !== undefined)
-        updates.VisitorName = updateData.visitorName;
-      if (updateData.phoneNumber !== undefined)
-        updates.PhoneNumber = updateData.phoneNumber;
-      if (updateData.email !== undefined) updates.Email = updateData.email;
-      if (updateData.company !== undefined)
-        updates.Company = updateData.company;
-      if (updateData.purpose !== undefined)
-        updates.Purpose = updateData.purpose;
-      if (updateData.idType !== undefined) updates.IdType = updateData.idType;
-      if (updateData.idNumber !== undefined)
-        updates.IdNumber = updateData.idNumber;
-      if (updateData.validFrom !== undefined)
-        updates.ValidFrom = updateData.validFrom;
-      if (updateData.validUntil !== undefined)
-        updates.ValidUntil = updateData.validUntil;
-      if (updateData.status !== undefined) updates.Status = updateData.status;
-      if (updateData.isActive !== undefined)
-        updates.IsActive = updateData.isActive;
-
-      if (Object.keys(updates).length === 0) {
-        throw new Error("No fields to update");
-      }
-
-      // Build dynamic update query
-      const keys = Object.keys(updates);
-      const setClause = keys.map((key) => `${key} = @${key}`).join(", ");
-
-      const pool = await sql.connect();
-      const request = pool.request().input("id", sql.Int, id);
-
-      keys.forEach((key) => {
-        const value = updates[key];
-        if (key === "IsActive") {
-          request.input(key, sql.Bit, value);
-        } else if (key === "ValidFrom" || key === "ValidUntil") {
-          request.input(key, sql.DateTime, value);
-        } else {
-          request.input(key, sql.NVarChar, value);
-        }
-      });
-
-      const query = `
-                UPDATE IdManagement 
-                SET ${setClause}, UpdatedAt = GETDATE()
-                OUTPUT INSERTED.*
-                WHERE IdManagementID = @id AND IsActive = 1
-            `;
-
-      const result = await request.query(query);
-
-      if (result.recordset.length === 0) {
-        return null;
-      }
-
-      console.log("✅ ID record updated successfully");
-      return result.recordset[0];
-    } catch (err) {
-      console.error("Error updating ID record:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Soft delete ID record (mark as inactive)
-   * @param {number} id - ID record ID
-   * @returns {Promise<boolean>} True if deleted
-   */
-  static async delete(id) {
-    try {
-      const pool = await sql.connect();
-      const result = await pool.request().input("id", sql.Int, id).query(`
-                    UPDATE IdManagement 
-                    SET IsActive = 0, DeletedAt = GETDATE()
-                    WHERE IdManagementID = @id
-                `);
-
-      const deleted = result.rowsAffected[0] > 0;
-      if (deleted) {
-        console.log(`🗑️ ID record ${id} deleted successfully`);
-      }
-      return deleted;
-    } catch (err) {
-      console.error("Error deleting ID record:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Get active ID records
-   * @returns {Promise<Array>} Array of active ID objects
-   */
-  static async findActive() {
-    try {
-      const pool = await sql.connect();
-      const result = await pool.request().query(`
-                    SELECT * FROM IdManagement 
-                    WHERE Status = 'Active' AND IsActive = 1
-                    ORDER BY CreatedAt DESC
-                `);
-      return result.recordset;
-    } catch (err) {
-      console.error("Error finding active ID records:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Get expired ID records
-   * @returns {Promise<Array>} Array of expired ID objects
-   */
-  static async findExpired() {
-    try {
-      const pool = await sql.connect();
-      const result = await pool.request().query(`
-                    SELECT * FROM IdManagement 
-                    WHERE Status = 'Expired' AND IsActive = 1
-                    ORDER BY ValidUntil ASC
-                `);
-      return result.recordset;
-    } catch (err) {
-      console.error("Error finding expired ID records:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Count total ID records
-   * @param {string} status - Filter by status
-   * @returns {Promise<number>} Total number of records
-   */
-  static async count(status = null) {
-    try {
-      let query = `SELECT COUNT(*) as total FROM IdManagement WHERE IsActive = 1`;
-      const request = new sql.Request();
-
-      if (status) {
-        query += ` AND Status = @status`;
-        request.input("status", sql.NVarChar, status);
-      }
-
-      const pool = await sql.connect();
-      const result = await request.query(query);
-      return result.recordset[0].total;
-    } catch (err) {
-      console.error("Error counting ID records:", err);
-      throw err;
-    }
-  }
-
-  /**
-   * Get ID statistics
-   * @returns {Promise<Object>} Statistics object
-   */
-  static async getStats() {
-    try {
-      const pool = await sql.connect();
-      const result = await pool.request().query(`
-                    SELECT 
-                        COUNT(*) as total,
-                        SUM(CASE WHEN Status = 'Active' THEN 1 ELSE 0 END) as active,
-                        SUM(CASE WHEN Status = 'Expired' THEN 1 ELSE 0 END) as expired,
-                        SUM(CASE WHEN Status = 'Revoked' THEN 1 ELSE 0 END) as revoked,
-                        SUM(CASE WHEN IdType = 'Visitor' THEN 1 ELSE 0 END) as visitors,
-                        SUM(CASE WHEN IdType = 'Employee' THEN 1 ELSE 0 END) as employees,
-                        SUM(CASE WHEN IdType = 'Contractor' THEN 1 ELSE 0 END) as contractors
-                    FROM IdManagement 
-                    WHERE IsActive = 1
-                `);
-      return result.recordset[0];
-    } catch (err) {
-      console.error("Error getting ID stats:", err);
-      throw err;
-    }
-  }
-}
-
-module.exports = IdManagement;
+module.exports = mongoose.model("IdManagement", idManagementSchema);

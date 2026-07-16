@@ -1,4 +1,5 @@
 // controllers/AuthController.js
+
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const User = require("../models/User.model");
@@ -6,20 +7,19 @@ const User = require("../models/User.model");
 /* ===========================
    SIGNUP
 =========================== */
-
 const signup = async (req, res) => {
   try {
-    // Log incoming request for debugging
-    console.log("📥 Signup request body:", req.body);
+    console.log("📥 Signup Request:", req.body);
 
-    // Extract fields from request body (support both camelCase and PascalCase)
     const fullName =
       req.body.fullName || req.body.FullName || req.body.fullname;
-    const email = req.body.email || req.body.Email;
+
+    const email = (req.body.email || req.body.Email || "").trim().toLowerCase();
+
     const password = req.body.password || req.body.Password;
+
     const role = req.body.role || req.body.Role || "Receptionist";
 
-    // Validate required fields
     if (!fullName || !email || !password) {
       return res.status(400).json({
         success: false,
@@ -27,8 +27,7 @@ const signup = async (req, res) => {
       });
     }
 
-    // Check if user already exists
-    const existingUser = await User.findByEmail(email);
+    const existingUser = await User.findOne({ email });
 
     if (existingUser) {
       return res.status(400).json({
@@ -37,47 +36,42 @@ const signup = async (req, res) => {
       });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create user - using the field names that match your model
     const user = await User.create({
-      fullName: fullName,
-      email: email,
+      fullName,
+      email,
       password: hashedPassword,
-      role: role || "Receptionist",
+      role,
     });
 
-    // Generate JWT token
     const token = jwt.sign(
       {
-        userId: user.UserID || user.Id || user.userId,
-        role: user.Role || user.role,
-        email: user.Email || user.email,
+        userId: user._id,
+        role: user.role,
+        email: user.email,
       },
-      process.env.JWT_SECRET || "your-secret-key-here",
+      process.env.JWT_SECRET,
       {
         expiresIn: "7d",
       },
     );
 
-    // Remove password from response
-    delete user.Password;
-    delete user.password;
+    const userData = user.toObject();
+    delete userData.password;
 
     res.status(201).json({
       success: true,
       message: "Signup successful.",
       token,
-      user,
+      user: userData,
     });
   } catch (err) {
-    console.error("❌ Signup error:", err);
-    console.error("Stack:", err.stack);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -85,74 +79,67 @@ const signup = async (req, res) => {
 /* ===========================
    LOGIN
 =========================== */
-
 const login = async (req, res) => {
   try {
-    console.log("📥 Login request body:", req.body);
+    const email = (req.body.email || req.body.Email || "").trim().toLowerCase();
 
-    const email = req.body.email || req.body.Email;
     const password = req.body.password || req.body.Password;
 
     if (!email || !password) {
       return res.status(400).json({
         success: false,
-        message: "Email and password are required.",
+        message: "Email and Password are required.",
       });
     }
 
-    // Find user by email
-    const user = await User.findByEmail(email);
+    const user = await User.findOne({ email });
 
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password.",
+        message: "Invalid Email or Password.",
       });
     }
 
-    // Compare password
-    const isMatch = await bcrypt.compare(
-      password,
-      user.Password || user.password,
-    );
+    const isMatch = await bcrypt.compare(password, user.password);
 
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: "Invalid email or password.",
+        message: "Invalid Email or Password.",
       });
     }
 
-    // Generate JWT token
+    user.lastLogin = new Date();
+    await user.save();
+
     const token = jwt.sign(
       {
-        userId: user.UserID || user.Id || user.userId,
-        role: user.Role || user.role,
-        email: user.Email || user.email,
+        userId: user._id,
+        role: user.role,
+        email: user.email,
       },
-      process.env.JWT_SECRET || "your-secret-key-here",
+      process.env.JWT_SECRET,
       {
         expiresIn: "7d",
       },
     );
 
-    // Remove password from response
-    delete user.Password;
-    delete user.password;
+    const userData = user.toObject();
+    delete userData.password;
 
     res.json({
       success: true,
       message: "Login successful.",
       token,
-      user,
+      user: userData,
     });
   } catch (err) {
-    console.error("❌ Login error:", err);
-    console.error("Stack:", err.stack);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -160,19 +147,9 @@ const login = async (req, res) => {
 /* ===========================
    GET PROFILE
 =========================== */
-
 const getProfile = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?.id;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized - User ID not found in token.",
-      });
-    }
-
-    const user = await User.findById(userId);
+    const user = await User.findById(req.user.userId).select("-password");
 
     if (!user) {
       return res.status(404).json({
@@ -181,20 +158,16 @@ const getProfile = async (req, res) => {
       });
     }
 
-    // Remove password from response
-    delete user.Password;
-    delete user.password;
-
     res.json({
       success: true,
       user,
     });
   } catch (err) {
-    console.error("❌ Get profile error:", err);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -202,38 +175,19 @@ const getProfile = async (req, res) => {
 /* ===========================
    UPDATE PROFILE
 =========================== */
-
 const updateProfile = async (req, res) => {
   try {
-    const userId = req.user?.userId || req.user?.id;
-    const fullName =
-      req.body.fullName || req.body.FullName || req.body.fullname;
-    const profileImage =
-      req.body.profileImage || req.body.ProfileImage || req.body.profileimage;
-    const phoneNumber =
-      req.body.phoneNumber || req.body.PhoneNumber || req.body.phonenumber;
-
-    if (!userId) {
-      return res.status(401).json({
-        success: false,
-        message: "Unauthorized - User ID not found in token.",
-      });
-    }
-
-    // Build update data object
     const updateData = {};
-    if (fullName) updateData.FullName = fullName;
-    if (profileImage) updateData.ProfileImage = profileImage;
-    if (phoneNumber) updateData.PhoneNumber = phoneNumber;
 
-    if (Object.keys(updateData).length === 0) {
-      return res.status(400).json({
-        success: false,
-        message: "No fields to update.",
-      });
-    }
+    if (req.body.fullName) updateData.fullName = req.body.fullName;
 
-    const user = await User.update(userId, updateData);
+    if (req.body.phoneNumber) updateData.phoneNumber = req.body.phoneNumber;
+
+    if (req.body.profileImage) updateData.profileImage = req.body.profileImage;
+
+    const user = await User.findByIdAndUpdate(req.user.userId, updateData, {
+      new: true,
+    }).select("-password");
 
     if (!user) {
       return res.status(404).json({
@@ -242,21 +196,17 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    // Remove password from response
-    delete user.Password;
-    delete user.password;
-
     res.json({
       success: true,
       message: "Profile updated successfully.",
       user,
     });
   } catch (err) {
-    console.error("❌ Update profile error:", err);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -264,28 +214,20 @@ const updateProfile = async (req, res) => {
 /* ===========================
    GET ALL USERS
 =========================== */
-
 const getAllUsers = async (req, res) => {
   try {
-    const users = await User.findAll();
-
-    // Remove passwords from all users
-    const sanitizedUsers = users.map((user) => {
-      delete user.Password;
-      delete user.password;
-      return user;
-    });
+    const users = await User.find().select("-password");
 
     res.json({
       success: true,
-      users: sanitizedUsers,
+      users,
     });
   } catch (err) {
-    console.error("❌ Get all users error:", err);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -293,21 +235,11 @@ const getAllUsers = async (req, res) => {
 /* ===========================
    DELETE USER
 =========================== */
-
 const deleteUser = async (req, res) => {
   try {
-    const userId = req.params.id || req.params.userId;
+    const user = await User.findByIdAndDelete(req.params.id);
 
-    if (!userId) {
-      return res.status(400).json({
-        success: false,
-        message: "User ID is required.",
-      });
-    }
-
-    const result = await User.delete(userId);
-
-    if (!result) {
+    if (!user) {
       return res.status(404).json({
         success: false,
         message: "User not found.",
@@ -319,11 +251,11 @@ const deleteUser = async (req, res) => {
       message: "User deleted successfully.",
     });
   } catch (err) {
-    console.error("❌ Delete user error:", err);
+    console.error(err);
 
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -331,17 +263,12 @@ const deleteUser = async (req, res) => {
 /* ===========================
    LOGOUT
 =========================== */
-
 const logout = async (req, res) => {
   res.json({
     success: true,
     message: "Logged out successfully.",
   });
 };
-
-/* ===========================
-   EXPORTS
-=========================== */
 
 module.exports = {
   signup,

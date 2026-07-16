@@ -1,4 +1,5 @@
 // controllers/IdManagementController.js
+
 const IdManagement = require("../models/IDManagement.model");
 
 /* ===========================
@@ -7,61 +8,22 @@ const IdManagement = require("../models/IDManagement.model");
 
 const createIdRecord = async (req, res) => {
   try {
-    console.log("📥 Create ID record request:", req.body);
-
-    const {
-      visitorName,
-      phoneNumber,
-      email,
-      company,
-      purpose,
-      idType,
-      idNumber,
-      validFrom,
-      validUntil,
-      status,
-    } = req.body;
-
-    // Validate required fields
-    if (!visitorName) {
-      return res.status(400).json({
-        success: false,
-        message: "Visitor name is required.",
-      });
-    }
-
-    if (!phoneNumber) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required.",
-      });
-    }
-
-    // Create ID record
-    const idRecord = await IdManagement.create({
-      visitorName,
-      phoneNumber,
-      email,
-      company,
-      purpose,
-      idType: idType || "Visitor",
-      idNumber,
-      validFrom: validFrom || new Date(),
-      validUntil,
+    const record = await IdManagement.create({
+      ...req.body,
       createdBy: req.user?.userId || null,
-      status: status || "Active",
     });
 
     res.status(201).json({
       success: true,
       message: "ID record created successfully.",
-      data: idRecord,
+      data: record,
     });
   } catch (err) {
-    console.error("❌ Create ID record error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -76,38 +38,47 @@ const getAllIdRecords = async (req, res) => {
       search,
       status,
       idType,
-      sortBy = "CreatedAt",
-      sortOrder = "DESC",
+      sortBy = "createdAt",
+      sortOrder = "desc",
     } = req.query;
 
-    const filters = {
-      search: search || null,
-      status: status || null,
-      idType: idType || null,
-      sortBy: sortBy,
-      sortOrder: sortOrder.toUpperCase(),
+    const filter = {
+      isActive: true,
     };
 
-    const records = await IdManagement.findAll(filters);
-    const total = await IdManagement.count(status);
+    if (status) filter.status = status;
+    if (idType) filter.idType = idType;
+
+    if (search) {
+      filter.$or = [
+        { visitorName: { $regex: search, $options: "i" } },
+        { phoneNumber: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+        { company: { $regex: search, $options: "i" } },
+        { idNumber: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const sort = {};
+    sort[sortBy] = sortOrder.toLowerCase() === "asc" ? 1 : -1;
+
+    const records = await IdManagement.find(filter)
+      .populate("createdBy", "fullName email")
+      .sort(sort);
+
+    const total = await IdManagement.countDocuments(filter);
 
     res.json({
       success: true,
       records,
       total,
-      filters: {
-        search: search || null,
-        status: status || null,
-        idType: idType || null,
-        sortBy,
-        sortOrder,
-      },
     });
   } catch (err) {
-    console.error("❌ Get all ID records error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -118,18 +89,12 @@ const getAllIdRecords = async (req, res) => {
 
 const getIdRecordById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const record = await IdManagement.findById(req.params.id).populate(
+      "createdBy",
+      "fullName email",
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "ID record ID is required.",
-      });
-    }
-
-    const record = await IdManagement.findById(parseInt(id));
-
-    if (!record) {
+    if (!record || !record.isActive) {
       return res.status(404).json({
         success: false,
         message: "ID record not found.",
@@ -141,10 +106,11 @@ const getIdRecordById = async (req, res) => {
       data: record,
     });
   } catch (err) {
-    console.error("❌ Get ID record error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -155,16 +121,10 @@ const getIdRecordById = async (req, res) => {
 
 const getIdRecordsByPhone = async (req, res) => {
   try {
-    const { phone } = req.params;
-
-    if (!phone) {
-      return res.status(400).json({
-        success: false,
-        message: "Phone number is required.",
-      });
-    }
-
-    const records = await IdManagement.findByPhone(phone);
+    const records = await IdManagement.find({
+      phoneNumber: req.params.phone,
+      isActive: true,
+    });
 
     res.json({
       success: true,
@@ -172,10 +132,11 @@ const getIdRecordsByPhone = async (req, res) => {
       count: records.length,
     });
   } catch (err) {
-    console.error("❌ Get ID records by phone error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -186,77 +147,54 @@ const getIdRecordsByPhone = async (req, res) => {
 
 const updateIdRecord = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
+    const record = await IdManagement.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      {
+        new: true,
+      },
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "ID record ID is required.",
-      });
-    }
-
-    // Check if record exists
-    const existingRecord = await IdManagement.findById(parseInt(id));
-    if (!existingRecord) {
+    if (!record) {
       return res.status(404).json({
         success: false,
         message: "ID record not found.",
-      });
-    }
-
-    // Update record
-    const updatedRecord = await IdManagement.update(parseInt(id), updateData);
-
-    if (!updatedRecord) {
-      return res.status(404).json({
-        success: false,
-        message: "ID record not found or already deleted.",
       });
     }
 
     res.json({
       success: true,
       message: "ID record updated successfully.",
-      data: updatedRecord,
+      data: record,
     });
   } catch (err) {
-    console.error("❌ Update ID record error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
 
 /* ===========================
-   DELETE ID RECORD
+   DELETE ID RECORD (Soft Delete)
 =========================== */
 
 const deleteIdRecord = async (req, res) => {
   try {
-    const { id } = req.params;
+    const record = await IdManagement.findByIdAndUpdate(
+      req.params.id,
+      {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+      {
+        new: true,
+      },
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "ID record ID is required.",
-      });
-    }
-
-    // Check if record exists
-    const existingRecord = await IdManagement.findById(parseInt(id));
-    if (!existingRecord) {
-      return res.status(404).json({
-        success: false,
-        message: "ID record not found.",
-      });
-    }
-
-    // Delete record
-    const deleted = await IdManagement.delete(parseInt(id));
-
-    if (!deleted) {
+    if (!record) {
       return res.status(404).json({
         success: false,
         message: "ID record not found.",
@@ -268,10 +206,11 @@ const deleteIdRecord = async (req, res) => {
       message: "ID record deleted successfully.",
     });
   } catch (err) {
-    console.error("❌ Delete ID record error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -282,7 +221,10 @@ const deleteIdRecord = async (req, res) => {
 
 const getActiveIdRecords = async (req, res) => {
   try {
-    const records = await IdManagement.findActive();
+    const records = await IdManagement.find({
+      status: "Active",
+      isActive: true,
+    });
 
     res.json({
       success: true,
@@ -290,10 +232,11 @@ const getActiveIdRecords = async (req, res) => {
       count: records.length,
     });
   } catch (err) {
-    console.error("❌ Get active ID records error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -304,7 +247,10 @@ const getActiveIdRecords = async (req, res) => {
 
 const getExpiredIdRecords = async (req, res) => {
   try {
-    const records = await IdManagement.findExpired();
+    const records = await IdManagement.find({
+      status: "Expired",
+      isActive: true,
+    });
 
     res.json({
       success: true,
@@ -312,10 +258,11 @@ const getExpiredIdRecords = async (req, res) => {
       count: records.length,
     });
   } catch (err) {
-    console.error("❌ Get expired ID records error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -326,24 +273,71 @@ const getExpiredIdRecords = async (req, res) => {
 
 const getIdStats = async (req, res) => {
   try {
-    const stats = await IdManagement.getStats();
+    const stats = await IdManagement.aggregate([
+      {
+        $match: {
+          isActive: true,
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: 1 },
+          active: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Active"] }, 1, 0],
+            },
+          },
+          expired: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Expired"] }, 1, 0],
+            },
+          },
+          revoked: {
+            $sum: {
+              $cond: [{ $eq: ["$status", "Revoked"] }, 1, 0],
+            },
+          },
+          visitors: {
+            $sum: {
+              $cond: [{ $eq: ["$idType", "Visitor"] }, 1, 0],
+            },
+          },
+          employees: {
+            $sum: {
+              $cond: [{ $eq: ["$idType", "Employee"] }, 1, 0],
+            },
+          },
+          contractors: {
+            $sum: {
+              $cond: [{ $eq: ["$idType", "Contractor"] }, 1, 0],
+            },
+          },
+        },
+      },
+    ]);
 
     res.json({
       success: true,
-      stats,
+      stats: stats[0] || {
+        total: 0,
+        active: 0,
+        expired: 0,
+        revoked: 0,
+        visitors: 0,
+        employees: 0,
+        contractors: 0,
+      },
     });
   } catch (err) {
-    console.error("❌ Get ID stats error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
-
-/* ===========================
-   EXPORTS
-=========================== */
 
 module.exports = {
   createIdRecord,

@@ -1,4 +1,5 @@
 // controllers/CompanyController.js
+
 const Company = require("../models/Company.model");
 
 /* ===========================
@@ -7,55 +8,22 @@ const Company = require("../models/Company.model");
 
 const createCompany = async (req, res) => {
   try {
-    console.log("📥 Create company request:", req.body);
-
-    const {
-      companyName,
-      contactPerson,
-      email,
-      phone,
-      address,
-      industry,
-      website,
-    } = req.body;
-
-    // Validate required fields
-    if (!companyName) {
-      return res.status(400).json({
-        success: false,
-        message: "Company name is required.",
-      });
-    }
-
-    if (!contactPerson) {
-      return res.status(400).json({
-        success: false,
-        message: "Contact person is required.",
-      });
-    }
-
-    // Create company
     const company = await Company.create({
-      companyName,
-      contactPerson,
-      email,
-      phone,
-      address,
-      industry,
-      website,
+      ...req.body,
       createdBy: req.user?.userId || null,
     });
 
     res.status(201).json({
       success: true,
-      message: "Company added successfully.",
+      message: "Company created successfully.",
       company,
     });
   } catch (err) {
-    console.error("❌ Create company error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -68,31 +36,46 @@ const getAllCompanies = async (req, res) => {
   try {
     const { search, industry, page = 1, limit = 10 } = req.query;
 
-    const filters = {
-      search: search || null,
-      industry: industry || null,
-      limit: parseInt(limit),
-      offset: (parseInt(page) - 1) * parseInt(limit),
+    const filter = {
+      isActive: true,
     };
 
-    const companies = await Company.findAll(filters);
-    const total = await Company.count(search);
+    if (industry) {
+      filter.industry = industry;
+    }
+
+    if (search) {
+      filter.$or = [
+        { companyName: { $regex: search, $options: "i" } },
+        { contactPerson: { $regex: search, $options: "i" } },
+        { email: { $regex: search, $options: "i" } },
+      ];
+    }
+
+    const companies = await Company.find(filter)
+      .populate("createdBy", "fullName email")
+      .skip((page - 1) * limit)
+      .limit(Number(limit))
+      .sort({ createdAt: -1 });
+
+    const total = await Company.countDocuments(filter);
 
     res.json({
       success: true,
       companies,
       pagination: {
         total,
-        page: parseInt(page),
-        limit: parseInt(limit),
+        page: Number(page),
+        limit: Number(limit),
         pages: Math.ceil(total / limit),
       },
     });
   } catch (err) {
-    console.error("❌ Get all companies error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -103,18 +86,12 @@ const getAllCompanies = async (req, res) => {
 
 const getCompanyById = async (req, res) => {
   try {
-    const { id } = req.params;
+    const company = await Company.findById(req.params.id).populate(
+      "createdBy",
+      "fullName email",
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Company ID is required.",
-      });
-    }
-
-    const company = await Company.findById(parseInt(id));
-
-    if (!company) {
+    if (!company || !company.isActive) {
       return res.status(404).json({
         success: false,
         message: "Company not found.",
@@ -126,10 +103,11 @@ const getCompanyById = async (req, res) => {
       company,
     });
   } catch (err) {
-    console.error("❌ Get company error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -140,77 +118,50 @@ const getCompanyById = async (req, res) => {
 
 const updateCompany = async (req, res) => {
   try {
-    const { id } = req.params;
-    const updateData = req.body;
+    const company = await Company.findByIdAndUpdate(req.params.id, req.body, {
+      new: true,
+    }).populate("createdBy", "fullName email");
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Company ID is required.",
-      });
-    }
-
-    // Check if company exists
-    const existingCompany = await Company.findById(parseInt(id));
-    if (!existingCompany) {
+    if (!company) {
       return res.status(404).json({
         success: false,
         message: "Company not found.",
-      });
-    }
-
-    // Update company
-    const updatedCompany = await Company.update(parseInt(id), updateData);
-
-    if (!updatedCompany) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found or already deleted.",
       });
     }
 
     res.json({
       success: true,
       message: "Company updated successfully.",
-      company: updatedCompany,
+      company,
     });
   } catch (err) {
-    console.error("❌ Update company error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
 
 /* ===========================
-   DELETE COMPANY
+   DELETE COMPANY (Soft Delete)
 =========================== */
 
 const deleteCompany = async (req, res) => {
   try {
-    const { id } = req.params;
+    const company = await Company.findByIdAndUpdate(
+      req.params.id,
+      {
+        isActive: false,
+        deletedAt: new Date(),
+      },
+      {
+        new: true,
+      },
+    );
 
-    if (!id) {
-      return res.status(400).json({
-        success: false,
-        message: "Company ID is required.",
-      });
-    }
-
-    // Check if company exists
-    const existingCompany = await Company.findById(parseInt(id));
-    if (!existingCompany) {
-      return res.status(404).json({
-        success: false,
-        message: "Company not found.",
-      });
-    }
-
-    // Delete company (soft delete)
-    const deleted = await Company.delete(parseInt(id));
-
-    if (!deleted) {
+    if (!company) {
       return res.status(404).json({
         success: false,
         message: "Company not found.",
@@ -222,10 +173,11 @@ const deleteCompany = async (req, res) => {
       message: "Company deleted successfully.",
     });
   } catch (err) {
-    console.error("❌ Delete company error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -236,17 +188,20 @@ const deleteCompany = async (req, res) => {
 
 const getIndustries = async (req, res) => {
   try {
-    const industries = await Company.getIndustries();
+    const industries = await Company.distinct("industry", {
+      isActive: true,
+    });
 
     res.json({
       success: true,
       industries,
     });
   } catch (err) {
-    console.error("❌ Get industries error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -259,24 +214,26 @@ const searchCompanies = async (req, res) => {
   try {
     const { q } = req.query;
 
-    if (!q) {
-      return res.status(400).json({
-        success: false,
-        message: "Search term is required.",
-      });
-    }
-
-    const companies = await Company.search(q);
+    const companies = await Company.find({
+      isActive: true,
+      $or: [
+        { companyName: { $regex: q, $options: "i" } },
+        { contactPerson: { $regex: q, $options: "i" } },
+        { email: { $regex: q, $options: "i" } },
+        { industry: { $regex: q, $options: "i" } },
+      ],
+    });
 
     res.json({
       success: true,
       companies,
     });
   } catch (err) {
-    console.error("❌ Search companies error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -287,18 +244,24 @@ const searchCompanies = async (req, res) => {
 
 const getRecentCompanies = async (req, res) => {
   try {
-    const { limit = 5 } = req.query;
-    const companies = await Company.getRecent(parseInt(limit));
+    const limit = Number(req.query.limit) || 5;
+
+    const companies = await Company.find({
+      isActive: true,
+    })
+      .sort({ createdAt: -1 })
+      .limit(limit);
 
     res.json({
       success: true,
       companies,
     });
   } catch (err) {
-    console.error("❌ Get recent companies error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
@@ -309,26 +272,21 @@ const getRecentCompanies = async (req, res) => {
 
 const getCompaniesByIndustry = async (req, res) => {
   try {
-    const { industry } = req.params;
-
-    if (!industry) {
-      return res.status(400).json({
-        success: false,
-        message: "Industry is required.",
-      });
-    }
-
-    const companies = await Company.findByIndustry(industry);
+    const companies = await Company.find({
+      industry: req.params.industry,
+      isActive: true,
+    });
 
     res.json({
       success: true,
       companies,
     });
   } catch (err) {
-    console.error("❌ Get companies by industry error:", err);
+    console.error(err);
+
     res.status(500).json({
       success: false,
-      message: err.message || "Internal server error",
+      message: err.message,
     });
   }
 };
