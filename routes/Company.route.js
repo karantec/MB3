@@ -21,7 +21,7 @@ router.get("/industry/:industry", getCompaniesByIndustry);
 
 // Protected routes (require authentication)
 router.post("/", protect, createCompany);
-router.get("/", protect, getAllCompanies);
+router.get("/", getAllCompanies);
 router.get("/:id", protect, getCompanyById);
 router.put("/:id", protect, updateCompany);
 router.delete("/:id", protect, deleteCompany);

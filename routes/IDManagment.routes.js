@@ -39,7 +39,7 @@ router.get("/stats", getIdStats);
 router.post("/", protect, createIdRecord);
 
 // Get all ID records with filters
-router.get("/", protect, getAllIdRecords);
+router.get("/", getAllIdRecords);
 
 // Get ID record by ID
 router.get("/:id", protect, getIdRecordById);
