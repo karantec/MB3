@@ -18,6 +18,7 @@ const connectDB = require("./config/db");
 const UserRoutes = require("./routes/Users.routes");
 const CompanyRoutes = require("./routes/Company.route");
 const IDManagementRoutes = require("./routes/IDManagment.routes");
+const IDvisitorRoutes = require("./routes/IDVisitor.routes");
 
 /* =======================
    Middleware
@@ -50,6 +51,7 @@ app.use((req, res, next) => {
 app.use("/api/auth", UserRoutes);
 app.use("/api/Company", CompanyRoutes);
 app.use("/api/IDManage", IDManagementRoutes);
+app.use("/api/IDVisitor", IDvisitorRoutes);
 /* =======================
    🔥 ADD THIS: Route Listing API (DEV ONLY)
 ======================= */
