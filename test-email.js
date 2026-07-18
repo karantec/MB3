@@ -1,15 +1,50 @@
-// test-email.js
+// test-pdf-email.js
 const nodemailer = require("nodemailer");
+const PDFDocument = require("pdfkit");
+const QRCode = require("qrcode");
 require("dotenv").config();
 
-async function testEmail() {
-  console.log("📧 Testing email configuration...");
-  console.log("From:", process.env.SMTP_USER);
-  console.log("Host:", process.env.SMTP_HOST);
-  console.log("Port:", process.env.SMTP_PORT);
+async function generateTestPDF() {
+  return new Promise((resolve, reject) => {
+    try {
+      const doc = new PDFDocument();
+      const buffers = [];
+      doc.on("data", buffers.push.bind(buffers));
+      doc.on("end", () => resolve(Buffer.concat(buffers)));
 
+      QRCode.toDataURL(
+        "https://example.com/visitor/123",
+        async (err, qrDataUrl) => {
+          if (err) reject(err);
+
+          doc.fontSize(24).text("TEST VISITOR PASS", { align: "center" });
+          doc.moveDown();
+          doc.fontSize(14).text("Name: John Doe");
+          doc.text("Phone: +1234567890");
+          doc.text("Purpose: Meeting");
+          doc.text(`Valid Until: ${new Date().toLocaleString()}`);
+          doc.moveDown();
+
+          const base64Data = qrDataUrl.replace(/^data:image\/png;base64,/, "");
+          const imageBuffer = Buffer.from(base64Data, "base64");
+          doc.image(imageBuffer, { fit: [150, 150], align: "center" });
+          doc.moveDown();
+          doc
+            .fontSize(10)
+            .text("Present this QR code at reception", { align: "center" });
+          doc.end();
+        },
+      );
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+async function sendTestPDFEmail() {
   try {
-    // Create transporter
+    console.log("📧 Testing PDF email...");
+
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,
       port: parseInt(process.env.SMTP_PORT),
@@ -20,58 +55,41 @@ async function testEmail() {
       },
     });
 
-    // Verify connection
-    console.log("🔍 Verifying connection...");
     await transporter.verify();
-    console.log("✅ Connection verified successfully!");
+    console.log("✅ Connection verified");
 
-    // Send test email (send it to yourself)
+    console.log("📄 Generating test PDF...");
+    const pdfBuffer = await generateTestPDF();
+    console.log("✅ PDF generated (size:", pdfBuffer.length, "bytes)");
+
     const mailOptions = {
-      from: `"Visitor System" <${process.env.SMTP_FROM}>`,
-      to: "sonutech04@gmail.com", // Sending to yourself for testing
-      subject: "✅ Test Email from Visitor Management System",
+      from: `"Visitor System" <${process.env.SMTP_FROM || "sonutech04@gmail.com"}>`,
+      to: "sonutech04@gmail.com",
+      subject: "✅ Test PDF with QR Code",
       html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #1a237e; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-            .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 8px 8px; }
-            .success { color: #2e7d32; font-size: 24px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🎉 Email Test Successful!</h1>
-            </div>
-            <div class="content">
-              <h2 class="success">✅ Your email configuration is working!</h2>
-              <p>This is a test email from your Visitor Management System.</p>
-              <p><strong>Email Account:</strong> ${process.env.SMTP_USER}</p>
-              <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
-              <p>You can now send QR codes via email to your visitors.</p>
-            </div>
-          </div>
-        </body>
-        </html>
+        <h1>✅ PDF Test Successful!</h1>
+        <p>This email contains a test PDF with a QR code.</p>
+        <p><strong>PDF Size:</strong> ${(pdfBuffer.length / 1024).toFixed(2)} KB</p>
+        <p><strong>Sent at:</strong> ${new Date().toLocaleString()}</p>
+        <p>Your QR code email system is working!</p>
       `,
+      attachments: [
+        {
+          filename: "test_visitor_pass.pdf",
+          content: pdfBuffer,
+          contentType: "application/pdf",
+        },
+      ],
     };
 
-    console.log("📤 Sending test email...");
+    console.log("📤 Sending email with PDF...");
     const info = await transporter.sendMail(mailOptions);
     console.log("✅ Email sent successfully!");
     console.log("📨 Message ID:", info.messageId);
-    console.log("📬 Response:", info.response);
-    console.log(`\n📧 Check your inbox at: sonutech04@gmail.com`);
+    console.log("📧 Check your inbox: sonutech04@gmail.com");
   } catch (error) {
     console.error("❌ Error:", error.message);
-    if (error.response) {
-      console.error("📝 Response:", error.response);
-    }
   }
 }
 
-testEmail();
+sendTestPDFEmail();

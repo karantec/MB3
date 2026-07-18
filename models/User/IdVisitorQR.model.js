@@ -65,11 +65,21 @@ const QRSchema = new mongoose.Schema(
       default: null,
     },
 
-    // NEW: Visitor Login & Email PDF fields
+    // Email & PDF tracking
     qrSentViaEmail: {
       type: Boolean,
       default: false,
     },
+    pdfSentAt: {
+      type: Date,
+      default: null,
+    },
+    pdfDownloadCount: {
+      type: Number,
+      default: 0,
+    },
+
+    // Visitor Login fields
     tempLoginToken: {
       type: String,
       index: true,
@@ -85,14 +95,6 @@ const QRSchema = new mongoose.Schema(
     lastLoginAt: {
       type: Date,
       default: null,
-    },
-    pdfSentAt: {
-      type: Date,
-      default: null,
-    },
-    pdfDownloadCount: {
-      type: Number,
-      default: 0,
     },
   },
   {

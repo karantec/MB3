@@ -14,7 +14,7 @@ const bcrypt = require("bcryptjs");
 
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST || "smtp.gmail.com",
-  port: parseInt(process.env.SMTP_PORT) || 587,
+  port: parseInt(process.env.SMTP_PORT) || 465,
   secure: process.env.SMTP_SECURE === "true",
   auth: {
     user: process.env.SMTP_USER,
@@ -33,7 +33,7 @@ const generateQRToken = () => {
 const generateQRCodeImage = async (token) => {
   try {
     const qrDataUrl = await QRCode.toDataURL(token, {
-      width: 300,
+      width: 400, // Increased from 300 for better quality
       margin: 2,
       color: {
         dark: "#000000",
@@ -67,15 +67,198 @@ const findValidVisitorByToken = async (token) => {
 };
 
 // ============================
-// PDF GENERATION HELPER
+// PDF GENERATION HELPER - UPDATED WITH LARGER QR CODE
 // ============================
 
+// const generateVisitorPDF = async (visitorData, qrCodeImage) => {
+//   return new Promise((resolve, reject) => {
+//     try {
+//       const doc = new PDFDocument({
+//         size: "A4",
+//         margin: 40,
+//         info: {
+//           Title: `Visitor Pass - ${visitorData.visitorName}`,
+//           Author: "Visitor Management System",
+//         },
+//       });
+
+//       const buffers = [];
+//       doc.on("data", buffers.push.bind(buffers));
+//       doc.on("end", () => {
+//         const pdfData = Buffer.concat(buffers);
+//         resolve(pdfData);
+//       });
+
+//       // ===== HEADER =====
+//       doc
+//         .fontSize(26)
+//         .font("Helvetica-Bold")
+//         .fillColor("#1a237e")
+//         .text("VISITOR PASS", { align: "center" })
+//         .moveDown(0.3);
+
+//       doc
+//         .fontSize(12)
+//         .font("Helvetica")
+//         .fillColor("#666")
+//         .text("Visitor Management System", { align: "center" })
+//         .moveDown(0.5);
+
+//       // Divider
+//       doc
+//         .strokeColor("#1a237e")
+//         .lineWidth(2)
+//         .moveTo(40, doc.y)
+//         .lineTo(550, doc.y)
+//         .stroke()
+//         .moveDown(0.8);
+
+//       // ===== VISITOR DETAILS - COMPACT =====
+//       doc
+//         .fontSize(12)
+//         .font("Helvetica-Bold")
+//         .fillColor("#1a237e")
+//         .text("Visitor Information", { underline: true })
+//         .moveDown(0.3);
+
+//       const details = [
+//         { label: "Name", value: visitorData.visitorName },
+//         { label: "Phone", value: visitorData.phoneNumber },
+//         { label: "Email", value: visitorData.email || "N/A" },
+//         { label: "Company", value: visitorData.company || "N/A" },
+//         { label: "ID Number", value: visitorData.idNumber || "N/A" },
+//         { label: "Purpose", value: visitorData.purpose || "Meeting" },
+//         {
+//           label: "Valid Until",
+//           value: new Date(visitorData.qrExpiresAt).toLocaleString(),
+//         },
+//         {
+//           label: "Status",
+//           value: visitorData.checkedIn ? "✓ Checked In" : "⏳ Not Checked In",
+//         },
+//       ];
+
+//       const midPoint = Math.ceil(details.length / 2);
+//       const leftCol = details.slice(0, midPoint);
+//       const rightCol = details.slice(midPoint);
+
+//       const startY = doc.y;
+//       let leftY = startY;
+//       let rightY = startY;
+
+//       leftCol.forEach((item) => {
+//         doc
+//           .font("Helvetica-Bold")
+//           .fontSize(10)
+//           .fillColor("#444")
+//           .text(`${item.label}: `, 40, leftY, { continued: true })
+//           .font("Helvetica")
+//           .fillColor("#000")
+//           .text(item.value)
+//           .moveDown(0.3);
+//         leftY = doc.y;
+//       });
+
+//       doc.y = startY;
+//       rightCol.forEach((item) => {
+//         doc
+//           .font("Helvetica-Bold")
+//           .fontSize(10)
+//           .fillColor("#444")
+//           .text(`${item.label}: `, 290, doc.y, { continued: true })
+//           .font("Helvetica")
+//           .fillColor("#000")
+//           .text(item.value)
+//           .moveDown(0.3);
+//       });
+
+//       doc.moveDown(1.5);
+
+//       // ===== LARGE QR CODE SECTION =====
+//       doc
+//         .font("Helvetica-Bold")
+//         .fontSize(14)
+//         .fillColor("#1a237e")
+//         .text("📱 SCAN QR CODE", { align: "center" })
+//         .moveDown(0.5);
+
+//       const pageWidth = doc.page.width;
+//       const qrSize = 280; // LARGER - 280px (was 180px)
+
+//       if (qrCodeImage && qrCodeImage.startsWith("data:image")) {
+//         const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
+//         const imageBuffer = Buffer.from(base64Data, "base64");
+//         doc.image(imageBuffer, {
+//           fit: [qrSize, qrSize],
+//           align: "center",
+//           valign: "center",
+//         });
+//       } else {
+//         doc
+//           .fontSize(12)
+//           .fillColor("#999")
+//           .text("QR Code Token: " + visitorData.qrToken, { align: "center" });
+//       }
+
+//       doc.moveDown(2.5);
+
+//       // QR Token Display
+//       doc
+//         .fontSize(8)
+//         .font("Helvetica")
+//         .fillColor("#888")
+//         .text(`Token: ${visitorData.qrToken}`, { align: "center" })
+//         .moveDown(1);
+
+//       // ===== FOOTER =====
+//       doc
+//         .strokeColor("#ddd")
+//         .lineWidth(1)
+//         .moveTo(40, doc.y)
+//         .lineTo(550, doc.y)
+//         .stroke()
+//         .moveDown(0.5);
+
+//       doc
+//         .fontSize(9)
+//         .font("Helvetica-Bold")
+//         .fillColor("#333")
+//         .text("INSTRUCTIONS:", { continued: true })
+//         .font("Helvetica")
+//         .fillColor("#555")
+//         .text(" Show this QR code at reception for check-in")
+//         .moveDown(0.3);
+
+//       doc
+//         .fontSize(8)
+//         .fillColor("#d32f2f")
+//         .text("⚠️ This pass is valid only on the date specified above.", {
+//           align: "center",
+//           italic: true,
+//         })
+//         .moveDown(0.2);
+
+//       doc
+//         .fontSize(7)
+//         .fillColor("#999")
+//         .text(
+//           `Generated: ${new Date().toLocaleString()} | Pass ID: ${visitorData._id}`,
+//           { align: "center" },
+//         );
+
+//       doc.end();
+//     } catch (error) {
+//       console.error("PDF Generation Error:", error);
+//       reject(error);
+//     }
+//   });
+// };
 const generateVisitorPDF = async (visitorData, qrCodeImage) => {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: "A4",
-        margin: 50,
+        margin: 30, // Reduced margins for maximum QR space
         info: {
           Title: `Visitor Pass - ${visitorData.visitorName}`,
           Author: "Visitor Management System",
@@ -89,101 +272,102 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
         resolve(pdfData);
       });
 
-      // Header
+      // ===== HEADER - COMPACT =====
       doc
-        .fontSize(24)
+        .fontSize(22)
         .font("Helvetica-Bold")
         .fillColor("#1a237e")
         .text("VISITOR PASS", { align: "center" })
-        .moveDown();
+        .moveDown(0.2);
 
-      // Divider
+      doc
+        .fontSize(10)
+        .font("Helvetica")
+        .fillColor("#666")
+        .text("Visitor Management System", { align: "center" })
+        .moveDown(0.3);
+
+      // Thin divider
       doc
         .strokeColor("#1a237e")
-        .lineWidth(2)
-        .moveTo(50, doc.y)
+        .lineWidth(1.5)
+        .moveTo(40, doc.y)
         .lineTo(550, doc.y)
         .stroke()
-        .moveDown();
-
-      // Visitor Details
-      doc
-        .fontSize(14)
-        .font("Helvetica-Bold")
-        .fillColor("#333")
-        .text("Visitor Information", { underline: true })
         .moveDown(0.5);
 
-      const details = [
-        { label: "Name", value: visitorData.visitorName },
-        { label: "Phone", value: visitorData.phoneNumber },
-        { label: "Email", value: visitorData.email || "N/A" },
-        { label: "Company", value: visitorData.company || "N/A" },
-        { label: "ID Number", value: visitorData.idNumber || "N/A" },
-        { label: "Purpose", value: visitorData.purpose || "Meeting" },
-        {
-          label: "Valid Until",
-          value: new Date(visitorData.qrExpiresAt).toLocaleString(),
-        },
-        {
-          label: "Status",
-          value: visitorData.checkedIn ? "✓ Checked In" : "⏳ Not Checked In",
-        },
-      ];
-
-      // Two column layout for details
-      const midPoint = Math.ceil(details.length / 2);
-      const leftCol = details.slice(0, midPoint);
-      const rightCol = details.slice(midPoint);
-
-      const startY = doc.y;
-      let leftY = startY;
-      let rightY = startY;
-
-      // Left column
-      leftCol.forEach((item) => {
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(11)
-          .fillColor("#555")
-          .text(`${item.label}: `, 50, leftY, { continued: true })
-          .font("Helvetica")
-          .fillColor("#000")
-          .text(item.value)
-          .moveDown(0.3);
-        leftY = doc.y;
-      });
-
-      // Right column
-      doc.y = startY;
-      rightCol.forEach((item) => {
-        doc
-          .font("Helvetica-Bold")
-          .fontSize(11)
-          .fillColor("#555")
-          .text(`${item.label}: `, 300, doc.y, { continued: true })
-          .font("Helvetica")
-          .fillColor("#000")
-          .text(item.value)
-          .moveDown(0.3);
-      });
-
-      doc.moveDown(2);
-
-      // QR Code Section
+      // ===== VISITOR DETAILS - COMPACT SINGLE LINE =====
       doc
+        .fontSize(9)
         .font("Helvetica-Bold")
-        .fontSize(14)
-        .fillColor("#333")
-        .text("QR Code", { underline: true })
+        .fillColor("#444")
+        .text(`Name: `, { continued: true })
+        .font("Helvetica")
+        .fillColor("#000")
+        .text(visitorData.visitorName, { continued: true })
+        .font("Helvetica-Bold")
+        .fillColor("#444")
+        .text(`  |  Phone: `, { continued: true })
+        .font("Helvetica")
+        .fillColor("#000")
+        .text(visitorData.phoneNumber, { continued: true })
+        .font("Helvetica-Bold")
+        .fillColor("#444")
+        .text(`  |  Purpose: `, { continued: true })
+        .font("Helvetica")
+        .fillColor("#000")
+        .text(visitorData.purpose || "Meeting")
+        .moveDown(0.2);
+
+      doc
+        .fontSize(9)
+        .font("Helvetica-Bold")
+        .fillColor("#444")
+        .text(`Company: `, { continued: true })
+        .font("Helvetica")
+        .fillColor("#000")
+        .text(visitorData.company || "N/A", { continued: true })
+        .font("Helvetica-Bold")
+        .fillColor("#444")
+        .text(`  |  Valid Until: `, { continued: true })
+        .font("Helvetica")
+        .fillColor("#000")
+        .text(new Date(visitorData.qrExpiresAt).toLocaleString())
         .moveDown(0.5);
 
-      // Add QR Code Image
+      // Thin divider
+      doc
+        .strokeColor("#ddd")
+        .lineWidth(1)
+        .moveTo(40, doc.y)
+        .lineTo(550, doc.y)
+        .stroke()
+        .moveDown(0.8);
+
+      // ===== LARGE QR CODE - TAKES MOST OF THE PAGE =====
+      doc
+        .font("Helvetica-Bold")
+        .fontSize(12)
+        .fillColor("#1a237e")
+        .text("📱 SCAN TO CHECK IN", { align: "center" })
+        .moveDown(0.5);
+
+      // Calculate position for MAXIMUM QR size
+      const pageWidth = doc.page.width;
+      const pageHeight = doc.page.height;
+      const availableHeight = pageHeight - doc.y - 100; // Leave room for footer
+      const qrSize = Math.min(380, availableHeight, pageWidth - 80); // MAXIMUM SIZE - 380px or available space
+
+      // Center the QR code
+      const qrX = (pageWidth - qrSize) / 2;
+      const qrY = doc.y;
+
+      // Add QR Code Image - MAXIMUM SIZE
       if (qrCodeImage && qrCodeImage.startsWith("data:image")) {
         const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, "base64");
         doc.image(imageBuffer, {
-          fit: [180, 180],
+          fit: [qrSize, qrSize],
           align: "center",
           valign: "center",
         });
@@ -194,49 +378,55 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
           .text("QR Code Token: " + visitorData.qrToken, { align: "center" });
       }
 
-      doc.moveDown();
+      // Move down after QR code
+      doc.moveDown(1);
 
-      // Footer with instructions
+      // ===== QR CODE LABEL =====
       doc
-        .moveDown()
+        .fontSize(8)
+        .font("Helvetica")
+        .fillColor("#888")
+        .text(`Token: ${visitorData.qrToken}`, { align: "center" })
+        .moveDown(0.5);
+
+      // ===== FOOTER =====
+      doc
         .strokeColor("#ddd")
         .lineWidth(1)
-        .moveTo(50, doc.y)
+        .moveTo(40, doc.y)
         .lineTo(550, doc.y)
         .stroke()
-        .moveDown();
+        .moveDown(0.3);
 
       doc
-        .fontSize(10)
-        .fillColor("#666")
-        .text("INSTRUCTIONS:", { continued: true })
+        .fontSize(8)
         .font("Helvetica")
-        .text(" Please present this QR code at the reception for check-in.")
-        .fontSize(9)
-        .fillColor("#888")
-        .text(
-          "This is a system-generated visitor pass. Do not share this QR code with anyone.",
-          { align: "center" },
-        )
-        .moveDown(0.3)
-        .text(`Generated on: ${new Date().toLocaleString()}`, {
+        .fillColor("#555")
+        .text("Show this QR code at reception for check-in", {
           align: "center",
         })
-        .text(`Pass ID: ${visitorData._id}`, { align: "center" });
+        .moveDown(0.2);
+
+      doc
+        .fontSize(7)
+        .fillColor("#999")
+        .text(
+          `Generated: ${new Date().toLocaleString()} | Pass ID: ${visitorData._id}`,
+          { align: "center" },
+        );
 
       doc.end();
     } catch (error) {
+      console.error("PDF Generation Error:", error);
       reject(error);
     }
   });
 };
-
 // ============================
 // TEMPORARY LOGIN HELPER
 // ============================
 
 const generateTemporaryPassword = () => {
-  // Generate a readable 8-character password
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
   let password = "";
   for (let i = 0; i < 8; i++) {
@@ -494,7 +684,6 @@ exports.getAllVisitors = async (req, res) => {
 
     let filter = {};
 
-    // Status filters
     if (status === "active") {
       filter = { qrExpiresAt: { $gt: now }, checkedIn: false };
     } else if (status === "expired") {
@@ -503,7 +692,6 @@ exports.getAllVisitors = async (req, res) => {
       filter = { checkedIn: true };
     }
 
-    // Search filter
     if (search) {
       const searchRegex = new RegExp(search, "i");
       filter.$or = [
@@ -618,7 +806,7 @@ exports.getVisitorByToken = async (req, res) => {
 exports.sendQR = async (req, res) => {
   try {
     const { id } = req.params;
-    const { phoneNumber, email } = req.body;
+    const { email } = req.body;
 
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
@@ -664,72 +852,136 @@ exports.sendQR = async (req, res) => {
     visitor.qrSentViaEmail = true;
     await visitor.save();
 
-    // Generate PDF
+    // Generate PDF with LARGE QR code
+    console.log("📄 Generating PDF with large QR code...");
     const pdfBuffer = await generateVisitorPDF(visitor, visitor.qrCode);
+    console.log(
+      `✅ PDF generated successfully! Size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+    );
 
-    // Prepare email
+    // Prepare email with PDF attachment
     const mailOptions = {
-      from: process.env.SMTP_FROM || "noreply@visitor-system.com",
+      from: `"Visitor Management System" <${process.env.SMTP_FROM || "sonutech04@gmail.com"}>`,
       to: recipientEmail,
-      subject: `Your Visitor Pass - ${visitor.visitorName}`,
+      subject: `📄 Your Visitor Pass with QR Code - ${visitor.visitorName}`,
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #1a237e; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-            .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 8px 8px; }
-            .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
-            .login-info { background: #e8f5e9; padding: 15px; border-radius: 8px; border-left: 4px solid #2e7d32; }
-            .button { display: inline-block; padding: 12px 24px; background: #1a237e; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0; }
-            .footer { margin-top: 20px; font-size: 12px; color: #888; text-align: center; }
+            .header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 25px; border-radius: 12px 12px 0 0; }
+            .header h1 { margin: 0; font-size: 28px; }
+            .header p { margin: 5px 0 0 0; opacity: 0.9; }
+            .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 12px 12px; }
+            .details { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+            .details h3 { margin-top: 0; color: #1a237e; }
+            .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #eee; }
+            .detail-row:last-child { border-bottom: none; }
+            .detail-label { font-weight: bold; color: #555; }
+            .detail-value { color: #000; }
+            .login-info { background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 4px solid #2e7d32; margin: 20px 0; }
+            .login-info h3 { margin-top: 0; color: #2e7d32; }
+            .password-box { background: white; padding: 10px; border-radius: 4px; font-family: monospace; font-size: 20px; letter-spacing: 2px; display: inline-block; border: 2px dashed #2e7d32; }
+            .button { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #1a237e, #283593); color: white; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+            .footer { margin-top: 20px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; }
+            .attachment-note { background: #fff3e0; padding: 15px; border-radius: 8px; border-left: 4px solid #e65100; margin: 20px 0; }
+            .qr-size-badge { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
           </style>
         </head>
         <body>
           <div class="header">
-            <h1>🎫 Visitor Pass</h1>
+            <h1>🎫 Your Visitor Pass</h1>
+            <p>QR Code attached as PDF</p>
           </div>
           <div class="content">
             <h2>Hello ${visitor.visitorName},</h2>
-            <p>Your visitor pass has been generated. Please find the QR code attached as a PDF.</p>
+            <p>Your visitor pass has been generated with a <strong>large, scannable QR code</strong>.</p>
             
             <div class="details">
               <h3>📋 Visitor Details</h3>
-              <p><strong>Name:</strong> ${visitor.visitorName}</p>
-              <p><strong>Phone:</strong> ${visitor.phoneNumber}</p>
-              ${visitor.email ? `<p><strong>Email:</strong> ${visitor.email}</p>` : ""}
-              ${visitor.company ? `<p><strong>Company:</strong> ${visitor.company}</p>` : ""}
-              ${visitor.idNumber ? `<p><strong>ID Number:</strong> ${visitor.idNumber}</p>` : ""}
-              <p><strong>Purpose:</strong> ${visitor.purpose || "Meeting"}</p>
-              <p><strong>Valid Until:</strong> ${new Date(visitor.qrExpiresAt).toLocaleString()}</p>
+              <div class="detail-row">
+                <span class="detail-label">Name:</span>
+                <span class="detail-value">${visitor.visitorName}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Phone:</span>
+                <span class="detail-value">${visitor.phoneNumber}</span>
+              </div>
+              ${
+                visitor.email
+                  ? `
+              <div class="detail-row">
+                <span class="detail-label">Email:</span>
+                <span class="detail-value">${visitor.email}</span>
+              </div>`
+                  : ""
+              }
+              ${
+                visitor.company
+                  ? `
+              <div class="detail-row">
+                <span class="detail-label">Company:</span>
+                <span class="detail-value">${visitor.company}</span>
+              </div>`
+                  : ""
+              }
+              ${
+                visitor.idNumber
+                  ? `
+              <div class="detail-row">
+                <span class="detail-label">ID Number:</span>
+                <span class="detail-value">${visitor.idNumber}</span>
+              </div>`
+                  : ""
+              }
+              <div class="detail-row">
+                <span class="detail-label">Purpose:</span>
+                <span class="detail-value">${visitor.purpose || "Meeting"}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Valid Until:</span>
+                <span class="detail-value">${new Date(visitor.qrExpiresAt).toLocaleString()}</span>
+              </div>
+              <div class="detail-row">
+                <span class="detail-label">Status:</span>
+                <span class="detail-value">${visitor.checkedIn ? "✅ Checked In" : "⏳ Pending"}</span>
+              </div>
+            </div>
+
+            <div class="attachment-note">
+              <strong>📎 PDF Attachment</strong>
+              <br>
+              <span style="font-size: 13px; color: #555;">
+                Your visitor pass with <strong>large QR code (280px)</strong> is attached as a PDF file.
+              </span>
+              <br>
+              <span class="qr-size-badge">📱 Large QR Code - Easy to Scan</span>
             </div>
 
             <div class="login-info">
               <h3>🔐 Visitor Portal Access</h3>
-              <p>You can now login to your visitor portal using the credentials below:</p>
+              <p>You can login to your visitor portal using these credentials:</p>
               <p><strong>Email:</strong> ${recipientEmail}</p>
-              <p><strong>Temporary Password:</strong> <span style="font-size: 18px; background: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${tempPassword}</span></p>
-              <p style="font-size: 14px; color: #555;">Please change your password after first login.</p>
+              <p><strong>Temporary Password:</strong></p>
+              <div class="password-box">${tempPassword}</div>
+              <p style="font-size: 14px; color: #555; margin-top: 10px;">Please change your password after first login.</p>
               <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/visitor/login?token=${visitorToken}" class="button">
-                Login to Visitor Portal
+                🔑 Login to Visitor Portal
               </a>
             </div>
 
-            <p><strong>📎 Attachment:</strong> Your visitor pass with QR code is attached as a PDF file.</p>
-            
-            <p style="margin-top: 20px;">
-              <strong>Instructions:</strong>
-              <ol>
-                <li>Open the attached PDF file</li>
-                <li>Show the QR code at the reception for check-in</li>
-                <li>Use the temporary password to login to your visitor portal</li>
-              </ol>
-            </p>
+            <h3>📌 Instructions:</h3>
+            <ol>
+              <li>Open the attached PDF file</li>
+              <li>Show the <strong>large QR code</strong> at the reception for check-in</li>
+              <li>Use the temporary password to login to your visitor portal</li>
+              <li>Keep this pass with you during your visit</li>
+            </ol>
 
             <div class="footer">
               <p>This is an automated message. Please do not reply to this email.</p>
-              <p>© ${new Date().getFullYear()} Visitor Management System</p>
+              <p>© ${new Date().getFullYear()} Visitor Management System. All rights reserved.</p>
             </div>
           </div>
         </body>
@@ -744,8 +996,12 @@ exports.sendQR = async (req, res) => {
       ],
     };
 
-    await transporter.sendMail(mailOptions);
+    console.log("📤 Sending email with PDF attachment...");
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ Email sent successfully!");
+    console.log("📨 Message ID:", info.messageId);
 
+    // Update visitor record
     visitor.lastQRSentAt = new Date();
     visitor.pdfSentAt = new Date();
     visitor.pdfDownloadCount = (visitor.pdfDownloadCount || 0) + 1;
@@ -763,10 +1019,13 @@ exports.sendQR = async (req, res) => {
         expiresAt: visitor.qrExpiresAt,
         tempPassword: tempPassword,
         loginToken: visitorToken,
+        pdfSentAt: visitor.pdfSentAt,
+        pdfSize: `${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+        messageId: info.messageId,
       },
     });
   } catch (error) {
-    console.error("Error sending QR email:", error);
+    console.error("❌ Error sending QR email:", error);
     res.status(500).json({
       success: false,
       message: "Error sending QR code",
@@ -825,7 +1084,6 @@ exports.resendQR = async (req, res) => {
       : 999;
 
     if (!visitor.tempLoginToken || passwordAge > 60) {
-      // 1 hour expiry for temp password
       tempPassword = generateTemporaryPassword();
       visitorToken = generateVisitorToken(visitor._id);
       const hashedPassword = await bcrypt.hash(tempPassword, 10);
@@ -835,23 +1093,29 @@ exports.resendQR = async (req, res) => {
       await visitor.save();
     }
 
-    // Generate PDF
+    // Generate PDF with LARGE QR code
+    console.log("📄 Generating PDF with large QR code...");
     const pdfBuffer = await generateVisitorPDF(visitor, visitor.qrCode);
+    console.log(
+      `✅ PDF generated successfully! Size: ${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+    );
 
     const mailOptions = {
-      from: process.env.SMTP_FROM || "noreply@visitor-system.com",
+      from: `"Visitor Management System" <${process.env.SMTP_FROM || "sonutech04@gmail.com"}>`,
       to: recipientEmail,
-      subject: `Resent: Your Visitor Pass - ${visitor.visitorName}`,
+      subject: `📄 Resent: Your Visitor Pass with QR Code - ${visitor.visitorName}`,
       html: `
         <!DOCTYPE html>
         <html>
         <head>
           <style>
             body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: #1a237e; color: white; padding: 20px; border-radius: 8px 8px 0 0; }
-            .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 8px 8px; }
+            .header { background: linear-gradient(135deg, #1a237e, #283593); color: white; padding: 25px; border-radius: 12px 12px 0 0; }
+            .content { background: #f5f5f5; padding: 30px; border-radius: 0 0 12px 12px; }
             .warning { background: #fff3e0; padding: 15px; border-radius: 8px; border-left: 4px solid #e65100; margin: 20px 0; }
-            .button { display: inline-block; padding: 12px 24px; background: #1a237e; color: white; text-decoration: none; border-radius: 4px; margin: 10px 0; }
+            .button { display: inline-block; padding: 12px 30px; background: linear-gradient(135deg, #1a237e, #283593); color: white; text-decoration: none; border-radius: 6px; margin: 10px 0; }
+            .footer { margin-top: 20px; font-size: 12px; color: #888; text-align: center; border-top: 1px solid #ddd; padding-top: 20px; }
+            .qr-size-badge { display: inline-block; background: #e8f5e9; color: #2e7d32; padding: 4px 12px; border-radius: 12px; font-size: 12px; font-weight: bold; }
           </style>
         </head>
         <body>
@@ -860,33 +1124,39 @@ exports.resendQR = async (req, res) => {
           </div>
           <div class="content">
             <h2>Hello ${visitor.visitorName},</h2>
-            <p>Your visitor pass has been resent. Please find the QR code attached as a PDF.</p>
+            <p>Your visitor pass has been resent with a <strong>large QR code</strong> attached as a PDF.</p>
             
             <div class="warning">
               <p><strong>⚠️ Important:</strong> Your QR code expires on ${new Date(visitor.qrExpiresAt).toLocaleString()}</p>
             </div>
 
+            <div style="background: white; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <p><strong>📎 PDF Attachment:</strong> Your visitor pass with <strong>large QR code (280px)</strong> is attached.</p>
+              <span class="qr-size-badge">📱 Large QR Code - Easy to Scan</span>
+            </div>
+
             ${
               tempPassword
                 ? `
-              <div style="background: #e8f5e9; padding: 15px; border-radius: 8px; margin: 20px 0;">
+              <div style="background: #e8f5e9; padding: 20px; border-radius: 8px; border-left: 4px solid #2e7d32; margin: 20px 0;">
                 <h3>🔄 New Temporary Password</h3>
-                <p><strong>Password:</strong> <span style="font-size: 18px; background: #fff; padding: 4px 8px; border-radius: 4px; font-family: monospace;">${tempPassword}</span></p>
+                <p><strong>Password:</strong> <span style="font-size: 20px; background: #fff; padding: 8px 12px; border-radius: 4px; font-family: monospace; border: 2px dashed #2e7d32;">${tempPassword}</span></p>
                 <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/visitor/login?token=${visitorToken}" class="button">
-                  Login to Visitor Portal
+                  🔑 Login to Visitor Portal
                 </a>
               </div>
             `
                 : `
               <p>You can continue using your existing login credentials.</p>
               <a href="${process.env.FRONTEND_URL || "http://localhost:3000"}/visitor/login?token=${visitorToken}" class="button">
-                Login to Visitor Portal
+                🔑 Login to Visitor Portal
               </a>
             `
             }
 
             <div class="footer">
               <p>This is an automated message. Please do not reply to this email.</p>
+              <p>© ${new Date().getFullYear()} Visitor Management System</p>
             </div>
           </div>
         </body>
@@ -901,7 +1171,9 @@ exports.resendQR = async (req, res) => {
       ],
     };
 
-    await transporter.sendMail(mailOptions);
+    console.log("📤 Resending email with PDF attachment...");
+    const info = await transporter.sendMail(mailOptions);
+    console.log("✅ Email resent successfully!");
 
     visitor.lastQRSentAt = new Date();
     visitor.pdfSentAt = new Date();
@@ -917,10 +1189,12 @@ exports.resendQR = async (req, res) => {
         email: recipientEmail,
         expiresAt: visitor.qrExpiresAt,
         ...(tempPassword && { tempPassword }),
+        pdfSize: `${(pdfBuffer.length / 1024).toFixed(2)} KB`,
+        messageId: info.messageId,
       },
     });
   } catch (error) {
-    console.error("Error resending QR:", error);
+    console.error("❌ Error resending QR:", error);
     res.status(500).json({
       success: false,
       message: "Error resending QR code",
@@ -935,7 +1209,7 @@ exports.resendQR = async (req, res) => {
 
 exports.visitorLogin = async (req, res) => {
   try {
-    const { email, password, token } = req.body;
+    const { email, password } = req.body;
 
     if (!email || !password) {
       return res.status(400).json({
@@ -975,7 +1249,6 @@ exports.visitorLogin = async (req, res) => {
       });
     }
 
-    // Generate session token
     const sessionToken = jwt.sign(
       {
         visitorId: visitor._id,
@@ -1171,7 +1444,6 @@ exports.regenerateQR = async (req, res) => {
     visitor.qrExpiresAt = getExpiryDate(expiryHours);
     visitor.checkedIn = false;
     visitor.checkedInAt = null;
-    // Reset login credentials so new ones will be generated
     visitor.tempLoginToken = null;
     visitor.tempPasswordHash = null;
     visitor.tempPasswordCreated = null;
