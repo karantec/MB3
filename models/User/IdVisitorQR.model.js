@@ -26,7 +26,7 @@ const QRSchema = new mongoose.Schema(
       default: null,
     },
 
-    // Visitor Information - Make sure these match your frontend
+    // Visitor Information
     visitorName: {
       type: String,
       required: [true, "Visitor name is required"],
@@ -64,6 +64,36 @@ const QRSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+
+    // NEW: Visitor Login & Email PDF fields
+    qrSentViaEmail: {
+      type: Boolean,
+      default: false,
+    },
+    tempLoginToken: {
+      type: String,
+      index: true,
+      sparse: true,
+    },
+    tempPasswordHash: {
+      type: String,
+    },
+    tempPasswordCreated: {
+      type: Date,
+      default: null,
+    },
+    lastLoginAt: {
+      type: Date,
+      default: null,
+    },
+    pdfSentAt: {
+      type: Date,
+      default: null,
+    },
+    pdfDownloadCount: {
+      type: Number,
+      default: 0,
+    },
   },
   {
     timestamps: true,
@@ -75,5 +105,25 @@ QRSchema.index({ qrExpiresAt: 1 }, { expireAfterSeconds: 0 });
 QRSchema.index({ phoneNumber: 1 });
 QRSchema.index({ visitorName: 1 });
 QRSchema.index({ qrToken: 1 }, { unique: true, sparse: true });
+QRSchema.index({ email: 1, qrExpiresAt: 1 });
+QRSchema.index({ tempLoginToken: 1 }, { sparse: true });
+
+// Methods
+QRSchema.methods.isExpired = function () {
+  return new Date() > this.qrExpiresAt;
+};
+
+QRSchema.methods.canLogin = function () {
+  return (
+    !this.isExpired() &&
+    this.tempPasswordHash &&
+    this.tempLoginToken &&
+    this.email
+  );
+};
+
+QRSchema.methods.hasValidPDF = function () {
+  return this.qrSentViaEmail && this.pdfSentAt && !this.isExpired();
+};
 
 module.exports = mongoose.model("QRModel", QRSchema);

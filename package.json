@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
-    "bcryptjs": "^3.0.2",
+    "bcryptjs": "^3.0.3",
     "cloudinary": "^1.41.3",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
@@ -34,19 +34,21 @@
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.1.0",
     "install": "^0.13.0",
-    "jsonwebtoken": "^9.0.2",
+    "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.7.4",
     "morgan": "^1.10.1",
     "mssql": "^12.7.0",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
-    "nodemailer": "^8.0.1",
+    "nodemailer": "^8.0.11",
+    "pdfkit": "^0.19.1",
     "qrcode": "^1.5.4",
     "razorpay": "^2.9.6",
     "twilio": "^5.13.1",
     "uuid": "^14.0.1"
   },
   "devDependencies": {
+    "@types/pdfkit": "^0.17.6",
     "nodemon": "^3.1.10"
   }
 }

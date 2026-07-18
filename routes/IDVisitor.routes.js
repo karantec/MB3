@@ -3,18 +3,70 @@ const express = require("express");
 const router = express.Router();
 const visitorController = require("../controllers/IDVIsitorQR.Controller");
 
-// Visitor CRUD
-router.post("/visitors", visitorController.createVisitor);
-router.get("/visitors", visitorController.getAllVisitors);
-router.get("/visitors/:id", visitorController.getVisitorById);
-router.delete("/visitors/:id", visitorController.deleteVisitor);
-router.delete("/visitors/bulk", visitorController.bulkDeleteVisitors);
+// ============================
+// PUBLIC VISITOR ROUTES
+// ============================
 
-// QR specific
-router.get("/visitors/token/:token", visitorController.getVisitorByToken);
+// Visitor login with temporary password
+router.post("/visitors/login", visitorController.visitorLogin);
+
+// Validate QR token (public)
 router.get("/visitors/validate/:token", visitorController.validateQR);
+
+// Scan QR (public - supports both GET and POST)
+router.get("/visitors/scan/:token", visitorController.scanVisitorQR);
+router.post("/visitors/scan", visitorController.scanVisitorQR);
+
+// Get visitor dashboard (requires authentication)
+router.get(
+  "/visitors/dashboard",
+  visitorController.verifyVisitorToken,
+  visitorController.getVisitorDashboard,
+);
+
+// ============================
+// ADMIN ROUTES (Visitor CRUD)
+// ============================
+
+// Create visitor
+router.post("/visitors", visitorController.createVisitor);
+
+// Bulk create visitors
+router.post("/visitors/bulk", visitorController.bulkCreateVisitors);
+
+// Get all visitors with filters
+router.get("/visitors", visitorController.getAllVisitors);
+
+// Get single visitor by ID
+router.get("/visitors/:id", visitorController.getVisitorById);
+
+// Get visitor by QR token
+router.get("/visitors/token/:token", visitorController.getVisitorByToken);
+
+// ============================
+// QR CODE OPERATIONS
+// ============================
+
+// Send QR via email with PDF attachment
 router.post("/visitors/:id/send-qr", visitorController.sendQR);
+
+// Resend QR via email with PDF
+router.post("/visitors/:id/resend-qr", visitorController.resendQR);
+
+// Check-in visitor
 router.post("/visitors/:id/check-in", visitorController.checkInVisitor);
+
+// Regenerate QR code
 router.post("/visitors/:id/regenerate-qr", visitorController.regenerateQR);
+
+// ============================
+// DELETE OPERATIONS
+// ============================
+
+// Delete single visitor
+router.delete("/visitors/:id", visitorController.deleteVisitor);
+
+// Bulk delete visitors (expired/checked-in/all)
+router.delete("/visitors/bulk", visitorController.bulkDeleteVisitors);
 
 module.exports = router;
