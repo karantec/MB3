@@ -804,11 +804,14 @@ exports.getVisitorByToken = async (req, res) => {
 // ============================
 
 exports.sendQR = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { email } = req.body;
+  const { id } = req.params;
+  const { email } = req.body;
+  console.log(`TRACE: [Backend Controller] API request received at POST /visitors/${id}/send-qr.`);
+  console.log("TRACE: [Backend Controller] Params ID:", id, "Request body Email:", email);
 
+  try {
     if (!mongoose.Types.ObjectId.isValid(id)) {
+      console.log("TRACE: [Backend Controller] Validation failed: Invalid visitor ID format.");
       return res.status(400).json({
         success: false,
         message: "Invalid visitor ID",
@@ -818,13 +821,17 @@ exports.sendQR = async (req, res) => {
     const visitor = await QRModel.findById(id);
 
     if (!visitor) {
+      console.log("TRACE: [Backend Controller] DB Lookup failed: Visitor not found in database.");
       return res.status(404).json({
         success: false,
         message: "Visitor not found",
       });
     }
 
+    console.log("TRACE: [Backend Controller] Visitor record located successfully:", visitor.visitorName);
+
     if (visitor.isExpired()) {
+      console.log("TRACE: [Backend Controller] Access validation failed: QR pass has expired.");
       return res.status(400).json({
         success: false,
         message: "QR code has expired. Please generate a new one.",
@@ -832,7 +839,9 @@ exports.sendQR = async (req, res) => {
     }
 
     const recipientEmail = email || visitor.email;
+    console.log("TRACE: [Backend Controller] Calculated recipient email:", recipientEmail);
     if (!recipientEmail) {
+      console.log("TRACE: [Backend Controller] Access validation failed: No target email address found.");
       return res.status(400).json({
         success: false,
         message: "Email address is required to send QR code",
@@ -842,6 +851,7 @@ exports.sendQR = async (req, res) => {
     // Generate temporary password and token for visitor login
     const tempPassword = generateTemporaryPassword();
     const visitorToken = generateVisitorToken(visitor._id);
+    console.log("TRACE: [Backend Controller] Generated temp portal password:", tempPassword);
 
     // Hash the temporary password
     const hashedPassword = await bcrypt.hash(tempPassword, 10);
@@ -851,6 +861,7 @@ exports.sendQR = async (req, res) => {
     visitor.tempPasswordCreated = new Date();
     visitor.qrSentViaEmail = true;
     await visitor.save();
+    console.log("TRACE: [Backend Controller] Temporary portal password hashed & updated in DB successfully.");
 
     // Generate PDF with LARGE QR code
     console.log("📄 Generating PDF with large QR code...");
@@ -860,6 +871,11 @@ exports.sendQR = async (req, res) => {
     );
 
     // Prepare email with PDF attachment
+    console.log("TRACE: [Backend Controller] Preparing email transporter options using SMTP configuration...");
+    console.log("TRACE: [Backend Controller] SMTP Host:", process.env.SMTP_HOST || "smtp.gmail.com");
+    console.log("TRACE: [Backend Controller] SMTP Port:", process.env.SMTP_PORT || "465");
+    console.log("TRACE: [Backend Controller] SMTP Sender (From):", process.env.SMTP_FROM || "sonutech04@gmail.com");
+
     const mailOptions = {
       from: `"Visitor Management System" <${process.env.SMTP_FROM || "sonutech04@gmail.com"}>`,
       to: recipientEmail,
@@ -1006,6 +1022,7 @@ exports.sendQR = async (req, res) => {
     visitor.pdfSentAt = new Date();
     visitor.pdfDownloadCount = (visitor.pdfDownloadCount || 0) + 1;
     await visitor.save();
+    console.log("TRACE: [Backend Controller] Saved updated metadata to MongoDB visitor document.");
 
     res.status(200).json({
       success: true,
@@ -1026,6 +1043,7 @@ exports.sendQR = async (req, res) => {
     });
   } catch (error) {
     console.error("❌ Error sending QR email:", error);
+    console.error("TRACE: [Backend Controller] Error stack details:", error.stack);
     res.status(500).json({
       success: false,
       message: "Error sending QR code",
@@ -1406,6 +1424,54 @@ exports.checkInVisitor = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error during check-in",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// CHECK-OUT VISITOR
+// ============================
+
+exports.checkOutVisitor = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visitor ID",
+      });
+    }
+
+    const visitor = await QRModel.findById(id);
+
+    if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "Visitor not found",
+      });
+    }
+
+    // Mark as checked out and free the ID Number
+    visitor.checkedIn = false;
+    visitor.idNumber = "";
+    await visitor.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Visitor checked out and ID freed successfully",
+      data: {
+        id: visitor._id,
+        visitorName: visitor.visitorName,
+        checkedIn: visitor.checkedIn,
+        idNumber: visitor.idNumber,
+      },
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Error during check-out",
       error: error.message,
     });
   }
