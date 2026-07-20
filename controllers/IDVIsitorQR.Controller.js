@@ -310,13 +310,7 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
         .text(`  |  Phone: `, { continued: true })
         .font("Helvetica")
         .fillColor("#000")
-        .text(visitorData.phoneNumber, { continued: true })
-        .font("Helvetica-Bold")
-        .fillColor("#444")
-        .text(`  |  Purpose: `, { continued: true })
-        .font("Helvetica")
-        .fillColor("#000")
-        .text(visitorData.purpose || "Meeting")
+        .text(visitorData.phoneNumber)
         .moveDown(0.2);
 
       doc
@@ -349,7 +343,7 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
         .font("Helvetica-Bold")
         .fontSize(12)
         .fillColor("#1a237e")
-        .text("📱 SCAN TO CHECK IN", { align: "center" })
+        .text("📱 SCAN QR CODE", { align: "center" })
         .moveDown(0.5);
 
       // Calculate position for MAXIMUM QR size
@@ -402,7 +396,7 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
         .fontSize(8)
         .font("Helvetica")
         .fillColor("#555")
-        .text("Show this QR code for verification", {
+        .text("Scan this QR code", {
           align: "center",
         })
         .moveDown(0.2);
