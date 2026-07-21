@@ -1738,8 +1738,7 @@ exports.validateQR = async (req, res) => {
   }
 };
 
-
-/ ============================
+// ============================
 // SCAN QR & GET COMPANY CABINETS
 // ============================
 
@@ -1784,7 +1783,7 @@ exports.scanAndGetCabinets = async (req, res) => {
 
       if (cabinets.length === 0) {
         cabinets = await Cabinet.find({
-          companyName: { $regex: escapedCompany, $options: "i" },
+          companyName: { $regex: companyName, $options: "i" },
           isActive: true,
         })
           .sort({ cabinetName: 1 })
