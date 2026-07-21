@@ -1,5 +1,6 @@
 // controllers/IDVIsitorQR.Controller.js
 const QRModel = require("../models/User/IdVisitorQR.model");
+const Cabinet = require("../models/Cabinet.model");
 const QRCode = require("qrcode");
 const crypto = require("crypto");
 const mongoose = require("mongoose");
@@ -1732,6 +1733,103 @@ exports.validateQR = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error validating QR",
+      error: error.message,
+    });
+  }
+};
+
+
+/ ============================
+// SCAN QR & GET COMPANY CABINETS
+// ============================
+
+exports.scanAndGetCabinets = async (req, res) => {
+  try {
+    const token =
+      req.params?.token ||
+      req.body?.token ||
+      req.body?.qrToken ||
+      req.query?.token;
+
+    if (!token) {
+      return res.status(400).json({
+        success: false,
+        message: "QR token is required",
+      });
+    }
+
+    // 1. Validate QR token & get visitor profile
+    const visitor = await findValidVisitorByToken(token);
+
+    if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "QR code is invalid or expired",
+        isValid: false,
+      });
+    }
+
+    // 2. Fetch available cabinets for the visitor's registered company
+    const companyName = visitor.company ? visitor.company.trim() : "";
+    let cabinets = [];
+
+    if (companyName) {
+      const escapedCompany = companyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      cabinets = await Cabinet.find({
+        companyName: { $regex: new RegExp(`^${escapedCompany}$`, "i") },
+        isActive: true,
+      })
+        .sort({ cabinetName: 1 })
+        .lean();
+
+      if (cabinets.length === 0) {
+        cabinets = await Cabinet.find({
+          companyName: { $regex: escapedCompany, $options: "i" },
+          isActive: true,
+        })
+          .sort({ cabinetName: 1 })
+          .lean();
+      }
+    }
+
+    // 3. Common areas (matching the UI design)
+    const commonAreas = [
+      { id: "wash_room", name: "Wash Room", type: "Common" },
+      { id: "key_cabinet", name: "Key Cabinet", type: "Common" },
+      { id: "noc_room", name: "NOC Room", type: "Common" },
+      { id: "loading_area", name: "Loading Area", type: "Common" },
+    ];
+
+    res.status(200).json({
+      success: true,
+      message: "QR validated and company cabinets retrieved successfully",
+      isValid: true,
+      data: {
+        visitor: {
+          id: visitor._id,
+          visitorName: visitor.visitorName,
+          phoneNumber: visitor.phoneNumber,
+          email: visitor.email || "",
+          company: visitor.company || "",
+          purpose: visitor.purpose || "Meeting",
+          checkedIn: visitor.checkedIn || false,
+          checkedInAt: visitor.checkedInAt || null,
+          qrExpiresAt: visitor.qrExpiresAt,
+        },
+        cabinets: cabinets.map((c) => ({
+          id: c._id,
+          cabinetName: c.cabinetName,
+          companyName: c.companyName,
+        })),
+        totalCabinets: cabinets.length,
+        commonAreas: commonAreas,
+      },
+    });
+  } catch (error) {
+    console.error("Error scanning QR for cabinets:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error scanning QR and fetching cabinets",
       error: error.message,
     });
   }
