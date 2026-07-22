@@ -11,9 +11,23 @@ const mist = axios.create({
 });
 
 async function getAssets() {
-  const response = await mist.get(`/sites/${SITE_ID}/stats/assets`);
+  try {
+    console.log("SITE_ID:", SITE_ID);
 
-  return response.data;
+    const url = `/sites/${SITE_ID}/stats/assets`;
+    console.log("Calling:", url);
+
+    const response = await mist.get(url);
+
+    return response.data;
+  } catch (err) {
+    console.error("Mist API Error");
+    console.error("Status:", err.response?.status);
+    console.error("Data:", err.response?.data);
+    console.error("URL:", err.config?.url);
+
+    throw err;
+  }
 }
 
 module.exports = {

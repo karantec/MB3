@@ -8,6 +8,18 @@ const nodemailer = require("nodemailer");
 const PDFDocument = require("pdfkit");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcryptjs");
+const axios = require("axios");
+
+// ============================
+// MIST API CONFIGURATION
+// ============================
+
+const MIST_API_TOKEN =
+  process.env.MIST_API_TOKEN ||
+  "li1iDhxqOaPiJyYwcEuIznaUcLqajVsVTnTS6eKtzFDh4N2ZPbInk8sodqYAFhjYqOOeB3LFIClQ2deNJUXDgIVWsJ6SCjlT";
+const MIST_SITE_ID =
+  process.env.MIST_SITE_ID || "8ddd401e-edb4-4b24-beb1-6298afdd0bd1";
+const MIST_API_BASE = "https://api.mist.com/api/v1";
 
 // ============================
 // EMAIL CONFIGURATION
@@ -24,6 +36,41 @@ const transporter = nodemailer.createTransport({
 });
 
 // ============================
+// MIST API HELPERS
+// ============================
+
+const getMistHeaders = () => ({
+  Authorization: `Token ${MIST_API_TOKEN}`,
+  "Content-Type": "application/json",
+});
+
+const fetchAssetLocations = async () => {
+  try {
+    const url = `${MIST_API_BASE}/sites/${MIST_SITE_ID}/stats/assets`;
+    const response = await axios.get(url, {
+      headers: getMistHeaders(),
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Mist API Error:", error.response?.data || error.message);
+    throw error;
+  }
+};
+
+const fetchMapDetails = async (mapId) => {
+  try {
+    const url = `${MIST_API_BASE}/sites/${MIST_SITE_ID}/maps/${mapId}`;
+    const response = await axios.get(url, {
+      headers: getMistHeaders(),
+    });
+    return response.data;
+  } catch (error) {
+    console.error("Map API Error:", error.response?.data || error.message);
+    return null;
+  }
+};
+
+// ============================
 // QR CODE GENERATION HELPERS
 // ============================
 
@@ -34,7 +81,7 @@ const generateQRToken = () => {
 const generateQRCodeImage = async (token) => {
   try {
     const qrDataUrl = await QRCode.toDataURL(token, {
-      width: 400, // Increased from 300 for better quality
+      width: 400,
       margin: 2,
       color: {
         dark: "#000000",
@@ -71,195 +118,12 @@ const findValidVisitorByToken = async (token) => {
 // PDF GENERATION HELPER - UPDATED WITH LARGER QR CODE
 // ============================
 
-// const generateVisitorPDF = async (visitorData, qrCodeImage) => {
-//   return new Promise((resolve, reject) => {
-//     try {
-//       const doc = new PDFDocument({
-//         size: "A4",
-//         margin: 40,
-//         info: {
-//           Title: `Visitor Pass - ${visitorData.visitorName}`,
-//           Author: "Visitor Management System",
-//         },
-//       });
-
-//       const buffers = [];
-//       doc.on("data", buffers.push.bind(buffers));
-//       doc.on("end", () => {
-//         const pdfData = Buffer.concat(buffers);
-//         resolve(pdfData);
-//       });
-
-//       // ===== HEADER =====
-//       doc
-//         .fontSize(26)
-//         .font("Helvetica-Bold")
-//         .fillColor("#1a237e")
-//         .text("VISITOR PASS", { align: "center" })
-//         .moveDown(0.3);
-
-//       doc
-//         .fontSize(12)
-//         .font("Helvetica")
-//         .fillColor("#666")
-//         .text("Visitor Management System", { align: "center" })
-//         .moveDown(0.5);
-
-//       // Divider
-//       doc
-//         .strokeColor("#1a237e")
-//         .lineWidth(2)
-//         .moveTo(40, doc.y)
-//         .lineTo(550, doc.y)
-//         .stroke()
-//         .moveDown(0.8);
-
-//       // ===== VISITOR DETAILS - COMPACT =====
-//       doc
-//         .fontSize(12)
-//         .font("Helvetica-Bold")
-//         .fillColor("#1a237e")
-//         .text("Visitor Information", { underline: true })
-//         .moveDown(0.3);
-
-//       const details = [
-//         { label: "Name", value: visitorData.visitorName },
-//         { label: "Phone", value: visitorData.phoneNumber },
-//         { label: "Email", value: visitorData.email || "N/A" },
-//         { label: "Company", value: visitorData.company || "N/A" },
-//         { label: "ID Number", value: visitorData.idNumber || "N/A" },
-//         { label: "Purpose", value: visitorData.purpose || "Meeting" },
-//         {
-//           label: "Valid Until",
-//           value: new Date(visitorData.qrExpiresAt).toLocaleString(),
-//         },
-//         {
-//           label: "Status",
-//           value: visitorData.checkedIn ? "✓ Checked In" : "⏳ Not Checked In",
-//         },
-//       ];
-
-//       const midPoint = Math.ceil(details.length / 2);
-//       const leftCol = details.slice(0, midPoint);
-//       const rightCol = details.slice(midPoint);
-
-//       const startY = doc.y;
-//       let leftY = startY;
-//       let rightY = startY;
-
-//       leftCol.forEach((item) => {
-//         doc
-//           .font("Helvetica-Bold")
-//           .fontSize(10)
-//           .fillColor("#444")
-//           .text(`${item.label}: `, 40, leftY, { continued: true })
-//           .font("Helvetica")
-//           .fillColor("#000")
-//           .text(item.value)
-//           .moveDown(0.3);
-//         leftY = doc.y;
-//       });
-
-//       doc.y = startY;
-//       rightCol.forEach((item) => {
-//         doc
-//           .font("Helvetica-Bold")
-//           .fontSize(10)
-//           .fillColor("#444")
-//           .text(`${item.label}: `, 290, doc.y, { continued: true })
-//           .font("Helvetica")
-//           .fillColor("#000")
-//           .text(item.value)
-//           .moveDown(0.3);
-//       });
-
-//       doc.moveDown(1.5);
-
-//       // ===== LARGE QR CODE SECTION =====
-//       doc
-//         .font("Helvetica-Bold")
-//         .fontSize(14)
-//         .fillColor("#1a237e")
-//         .text("📱 SCAN QR CODE", { align: "center" })
-//         .moveDown(0.5);
-
-//       const pageWidth = doc.page.width;
-//       const qrSize = 280; // LARGER - 280px (was 180px)
-
-//       if (qrCodeImage && qrCodeImage.startsWith("data:image")) {
-//         const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
-//         const imageBuffer = Buffer.from(base64Data, "base64");
-//         doc.image(imageBuffer, {
-//           fit: [qrSize, qrSize],
-//           align: "center",
-//           valign: "center",
-//         });
-//       } else {
-//         doc
-//           .fontSize(12)
-//           .fillColor("#999")
-//           .text("QR Code Token: " + visitorData.qrToken, { align: "center" });
-//       }
-
-//       doc.moveDown(2.5);
-
-//       // QR Token Display
-//       doc
-//         .fontSize(8)
-//         .font("Helvetica")
-//         .fillColor("#888")
-//         .text(`Token: ${visitorData.qrToken}`, { align: "center" })
-//         .moveDown(1);
-
-//       // ===== FOOTER =====
-//       doc
-//         .strokeColor("#ddd")
-//         .lineWidth(1)
-//         .moveTo(40, doc.y)
-//         .lineTo(550, doc.y)
-//         .stroke()
-//         .moveDown(0.5);
-
-//       doc
-//         .fontSize(9)
-//         .font("Helvetica-Bold")
-//         .fillColor("#333")
-//         .text("INSTRUCTIONS:", { continued: true })
-//         .font("Helvetica")
-//         .fillColor("#555")
-//         .text(" Show this QR code at reception for check-in")
-//         .moveDown(0.3);
-
-//       doc
-//         .fontSize(8)
-//         .fillColor("#d32f2f")
-//         .text("⚠️ This pass is valid only on the date specified above.", {
-//           align: "center",
-//           italic: true,
-//         })
-//         .moveDown(0.2);
-
-//       doc
-//         .fontSize(7)
-//         .fillColor("#999")
-//         .text(
-//           `Generated: ${new Date().toLocaleString()} | Pass ID: ${visitorData._id}`,
-//           { align: "center" },
-//         );
-
-//       doc.end();
-//     } catch (error) {
-//       console.error("PDF Generation Error:", error);
-//       reject(error);
-//     }
-//   });
-// };
 const generateVisitorPDF = async (visitorData, qrCodeImage) => {
   return new Promise((resolve, reject) => {
     try {
       const doc = new PDFDocument({
         size: "A4",
-        margin: 30, // Reduced margins for maximum QR space
+        margin: 30,
         info: {
           Title: `Visitor Pass - ${visitorData.visitorName}`,
           Author: "Visitor Management System",
@@ -350,14 +214,9 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
       // Calculate position for MAXIMUM QR size
       const pageWidth = doc.page.width;
       const pageHeight = doc.page.height;
-      const availableHeight = pageHeight - doc.y - 100; // Leave room for footer
-      const qrSize = Math.min(380, availableHeight, pageWidth - 80); // MAXIMUM SIZE - 380px or available space
+      const availableHeight = pageHeight - doc.y - 100;
+      const qrSize = Math.min(380, availableHeight, pageWidth - 80);
 
-      // Center the QR code
-      const qrX = (pageWidth - qrSize) / 2;
-      const qrY = doc.y;
-
-      // Add QR Code Image - MAXIMUM SIZE
       if (qrCodeImage && qrCodeImage.startsWith("data:image")) {
         const base64Data = qrCodeImage.replace(/^data:image\/png;base64,/, "");
         const imageBuffer = Buffer.from(base64Data, "base64");
@@ -373,7 +232,6 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
           .text("QR Code Token: " + visitorData.qrToken, { align: "center" });
       }
 
-      // Move down after QR code
       doc.moveDown(1);
 
       // ===== QR CODE LABEL =====
@@ -417,6 +275,7 @@ const generateVisitorPDF = async (visitorData, qrCodeImage) => {
     }
   });
 };
+
 // ============================
 // TEMPORARY LOGIN HELPER
 // ============================
@@ -1829,6 +1688,355 @@ exports.scanAndGetCabinets = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error scanning QR and fetching cabinets",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// GET VISITOR LOCATION
+// ============================
+
+exports.getVisitorLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visitor ID",
+      });
+    }
+
+    const visitor = await QRModel.findById(id);
+
+    if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "Visitor not found",
+      });
+    }
+
+    // Check if visitor has an assigned cabinet/ID
+    if (!visitor.idNumber || visitor.idNumber.trim() === "") {
+      return res.status(404).json({
+        success: false,
+        message: "No ID/asset assigned to this visitor",
+      });
+    }
+
+    // Fetch all asset locations from Mist
+    const assets = await fetchAssetLocations();
+
+    // Find the asset that matches the visitor's ID Number
+    const matchedAsset = assets.find(
+      (asset) =>
+        asset.name === visitor.idNumber || asset.mac === visitor.idNumber,
+    );
+
+    if (!matchedAsset) {
+      return res.status(404).json({
+        success: false,
+        message: "Asset location not found for this visitor",
+      });
+    }
+
+    // Get map details if map_id exists
+    let mapDetails = null;
+    if (matchedAsset.map_id) {
+      mapDetails = await fetchMapDetails(matchedAsset.map_id);
+    }
+
+    // Calculate distance from target coordinates (if provided)
+    const targetX = 5525.298750495607;
+    const targetY = 2491.837930104785;
+    const distance =
+      matchedAsset.x && matchedAsset.y
+        ? Math.sqrt(
+            Math.pow(matchedAsset.x - targetX, 2) +
+              Math.pow(matchedAsset.y - targetY, 2),
+          )
+        : null;
+
+    // Determine proximity status
+    const proximityStatus =
+      distance !== null
+        ? distance < 100
+          ? "Very Close"
+          : distance < 300
+            ? "Close"
+            : distance < 500
+              ? "Moderate"
+              : "Far"
+        : "Unknown";
+
+    const locationData = {
+      visitor: {
+        id: visitor._id,
+        name: visitor.visitorName,
+        phone: visitor.phoneNumber,
+        email: visitor.email,
+        company: visitor.company,
+        idNumber: visitor.idNumber,
+        purpose: visitor.purpose,
+        checkedIn: visitor.checkedIn,
+        checkedInAt: visitor.checkedInAt,
+        qrExpiresAt: visitor.qrExpiresAt,
+      },
+      location: {
+        x: matchedAsset.x || null,
+        y: matchedAsset.y || null,
+        name: matchedAsset.name,
+        mac: matchedAsset.mac,
+        map_id: matchedAsset.map_id,
+        ap_mac: matchedAsset.ap_mac,
+        last_seen: matchedAsset.last_seen,
+        rssi: matchedAsset.rssi,
+        beam: matchedAsset.beam,
+        device_name: matchedAsset.device_name,
+        manufacture: matchedAsset.manufacture,
+      },
+      map: mapDetails
+        ? {
+            id: mapDetails.id,
+            name: mapDetails.name,
+            width: mapDetails.width,
+            height: mapDetails.height,
+            orientation: mapDetails.orientation,
+          }
+        : null,
+      target_coordinates: {
+        x: targetX,
+        y: targetY,
+      },
+      distance: distance,
+      proximity: proximityStatus,
+      timestamp: new Date().toISOString(),
+    };
+
+    res.status(200).json({
+      success: true,
+      message: "Visitor location retrieved successfully",
+      data: locationData,
+    });
+  } catch (error) {
+    console.error("Error fetching visitor location:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching visitor location",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// GET ALL ASSET LOCATIONS
+// ============================
+
+exports.getAllAssetLocations = async (req, res) => {
+  try {
+    const assets = await fetchAssetLocations();
+
+    // Filter assets with location data
+    const locatedAssets = assets.filter(
+      (asset) => asset.x !== undefined && asset.x !== null,
+    );
+
+    res.status(200).json({
+      success: true,
+      total: locatedAssets.length,
+      data: locatedAssets,
+    });
+  } catch (error) {
+    console.error("Error fetching asset locations:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching asset locations",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// GET MAP DETAILS
+// ============================
+
+exports.getMapDetails = async (req, res) => {
+  try {
+    const { mapId } = req.params;
+
+    if (!mapId) {
+      return res.status(400).json({
+        success: false,
+        message: "Map ID is required",
+      });
+    }
+
+    const mapDetails = await fetchMapDetails(mapId);
+
+    if (!mapDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Map not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: mapDetails,
+    });
+  } catch (error) {
+    console.error("Error fetching map details:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching map details",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// GET VISITOR CABINET
+// ============================
+
+exports.getVisitorCabinet = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visitor ID",
+      });
+    }
+
+    const visitor = await QRModel.findById(id);
+
+    if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "Visitor not found",
+      });
+    }
+
+    if (!visitor.idNumber || visitor.idNumber.trim() === "") {
+      return res.status(404).json({
+        success: false,
+        message: "No cabinet/asset assigned to this visitor",
+      });
+    }
+
+    // Fetch all assets from Mist
+    const assets = await fetchAssetLocations();
+
+    // Find the asset by name or MAC
+    const cabinet = assets.find(
+      (asset) =>
+        asset.name === visitor.idNumber || asset.mac === visitor.idNumber,
+    );
+
+    if (!cabinet) {
+      return res.status(404).json({
+        success: false,
+        message: "Cabinet/asset not found in system",
+      });
+    }
+
+    // Get map details
+    let mapDetails = null;
+    if (cabinet.map_id) {
+      mapDetails = await fetchMapDetails(cabinet.map_id);
+    }
+
+    res.status(200).json({
+      success: true,
+      data: {
+        visitor: {
+          id: visitor._id,
+          name: visitor.visitorName,
+          company: visitor.company,
+        },
+        cabinet: {
+          id: cabinet.id,
+          name: cabinet.name,
+          mac: cabinet.mac,
+          x: cabinet.x || null,
+          y: cabinet.y || null,
+          map_id: cabinet.map_id,
+          last_seen: cabinet.last_seen,
+          rssi: cabinet.rssi,
+          device_name: cabinet.device_name,
+        },
+        map: mapDetails
+          ? {
+              id: mapDetails.id,
+              name: mapDetails.name,
+              width: mapDetails.width,
+              height: mapDetails.height,
+            }
+          : null,
+      },
+    });
+  } catch (error) {
+    console.error("Error fetching visitor cabinet:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error fetching visitor cabinet",
+      error: error.message,
+    });
+  }
+};
+
+// ============================
+// UPDATE VISITOR CABINET
+// ============================
+
+exports.updateVisitorCabinet = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { idNumber, assetName } = req.body;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid visitor ID",
+      });
+    }
+
+    if (!idNumber && !assetName) {
+      return res.status(400).json({
+        success: false,
+        message: "idNumber or assetName is required",
+      });
+    }
+
+    const visitor = await QRModel.findById(id);
+
+    if (!visitor) {
+      return res.status(404).json({
+        success: false,
+        message: "Visitor not found",
+      });
+    }
+
+    // Update visitor's idNumber
+    visitor.idNumber = idNumber || assetName;
+    await visitor.save();
+
+    res.status(200).json({
+      success: true,
+      message: "Visitor cabinet updated successfully",
+      data: {
+        id: visitor._id,
+        visitorName: visitor.visitorName,
+        idNumber: visitor.idNumber,
+      },
+    });
+  } catch (error) {
+    console.error("Error updating visitor cabinet:", error);
+    res.status(500).json({
+      success: false,
+      message: "Error updating visitor cabinet",
       error: error.message,
     });
   }

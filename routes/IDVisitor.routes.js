@@ -2,7 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const visitorController = require("../controllers/IDVIsitorQR.Controller");
-const { getVisitorRoute } = require("../controllers/location.controller");
+const locationController = require("../controllers/location.controller");
 
 // ============================
 // PUBLIC VISITOR ROUTES
@@ -18,8 +18,11 @@ router.get("/visitors/validate/:token", visitorController.validateQR);
 router.get("/visitors/scan/:token", visitorController.scanVisitorQR);
 router.post("/visitors/scan", visitorController.scanVisitorQR);
 
-// Scan QR & fetch cabinets for specific company (Single API - supports GET and POST)
-router.get("/visitors/scan-cabinets/:token", visitorController.scanAndGetCabinets);
+// Scan QR & fetch cabinets for specific company
+router.get(
+  "/visitors/scan-cabinets/:token",
+  visitorController.scanAndGetCabinets,
+);
 router.post("/visitors/scan-cabinets", visitorController.scanAndGetCabinets);
 
 // Get visitor dashboard (requires authentication)
@@ -67,7 +70,24 @@ router.post("/visitors/:id/check-out", visitorController.checkOutVisitor);
 // Regenerate QR code
 router.post("/visitors/:id/regenerate-qr", visitorController.regenerateQR);
 
-router.get("/visitors/:id/location", getVisitorRoute);
+// ============================
+// LOCATION TRACKING ROUTES
+// ============================
+
+// Get visitor location
+router.get("/visitors/:id/location", locationController.getVisitorRoute);
+
+// Get visitor cabinet/asset
+router.get("/visitors/:id/cabinet", locationController.getVisitorCabinet);
+
+// Update visitor cabinet
+router.put("/visitors/:id/cabinet", locationController.updateVisitorCabinet);
+
+// Get all asset locations from Mist
+router.get("/assets/locations", locationController.getAllAssetLocations);
+
+// Get map details
+router.get("/maps/:mapId", locationController.getMapDetails);
 
 // ============================
 // DELETE OPERATIONS
