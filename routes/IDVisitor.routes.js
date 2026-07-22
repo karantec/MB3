@@ -18,6 +18,10 @@ router.get("/visitors/validate/:token", visitorController.validateQR);
 router.get("/visitors/scan/:token", visitorController.scanVisitorQR);
 router.post("/visitors/scan", visitorController.scanVisitorQR);
 
+// Scan QR & fetch cabinets for specific company (Single API - supports GET and POST)
+router.get("/visitors/scan-cabinets/:token", visitorController.scanAndGetCabinets);
+router.post("/visitors/scan-cabinets", visitorController.scanAndGetCabinets);
+
 // Get visitor dashboard (requires authentication)
 router.get(
   "/visitors/dashboard",
@@ -56,6 +60,9 @@ router.post("/visitors/:id/resend-qr", visitorController.resendQR);
 
 // Check-in visitor
 router.post("/visitors/:id/check-in", visitorController.checkInVisitor);
+
+// Check-out visitor
+router.post("/visitors/:id/check-out", visitorController.checkOutVisitor);
 
 // Regenerate QR code
 router.post("/visitors/:id/regenerate-qr", visitorController.regenerateQR);
