@@ -2,6 +2,7 @@
 const express = require("express");
 const router = express.Router();
 const visitorController = require("../controllers/IDVIsitorQR.Controller");
+const { getVisitorRoute } = require("../controllers/location.controller");
 
 // ============================
 // PUBLIC VISITOR ROUTES
@@ -58,6 +59,8 @@ router.post("/visitors/:id/check-in", visitorController.checkInVisitor);
 
 // Regenerate QR code
 router.post("/visitors/:id/regenerate-qr", visitorController.regenerateQR);
+
+router.get("/visitors/:id/location", getVisitorRoute);
 
 // ============================
 // DELETE OPERATIONS
