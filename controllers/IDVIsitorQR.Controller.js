@@ -1602,6 +1602,16 @@ exports.validateQR = async (req, res) => {
 // ============================
 
 exports.scanAndGetCabinets = async (req, res) => {
+  console.log("==========================================");
+  console.log(
+    "🚀 [scanAndGetCabinets] Incoming request:",
+    req.method,
+    req.originalUrl,
+  );
+  console.log("📥 [scanAndGetCabinets] req.params:", req.params);
+  console.log("📥 [scanAndGetCabinets] req.body:", req.body);
+  console.log("📥 [scanAndGetCabinets] req.query:", req.query);
+
   try {
     const token =
       req.params?.token ||
@@ -1609,7 +1619,12 @@ exports.scanAndGetCabinets = async (req, res) => {
       req.body?.qrToken ||
       req.query?.token;
 
+    console.log("🔑 [scanAndGetCabinets] Extracted Token:", token);
+
     if (!token) {
+      console.log(
+        "❌ [scanAndGetCabinets] Validation failed: No token provided in params, body, or query",
+      );
       return res.status(400).json({
         success: false,
         message: "QR token is required",
@@ -1617,9 +1632,15 @@ exports.scanAndGetCabinets = async (req, res) => {
     }
 
     // 1. Validate QR token & get visitor profile
+    console.log(
+      "⏳ [scanAndGetCabinets] Step 1: Validating token against database...",
+    );
     const visitor = await findValidVisitorByToken(token);
 
     if (!visitor) {
+      console.log(
+        "❌ [scanAndGetCabinets] Step 1 Failed: Token is invalid or expired. Returning 404.",
+      );
       return res.status(404).json({
         success: false,
         message: "QR code is invalid or expired",
@@ -1627,8 +1648,21 @@ exports.scanAndGetCabinets = async (req, res) => {
       });
     }
 
+    console.log(
+      "✅ [scanAndGetCabinets] Step 1 Success: Visitor verified - ID:",
+      visitor._id,
+      "Name:",
+      visitor.visitorName,
+      "Company:",
+      visitor.company,
+    );
+
     // 2. Fetch available cabinets for the visitor's registered company
     const companyName = visitor.company ? visitor.company.trim() : "";
+    console.log(
+      "⏳ [scanAndGetCabinets] Step 2: Fetching cabinets for company:",
+      companyName || "(No company set)",
+    );
     let cabinets = [];
 
     if (companyName) {
@@ -1641,6 +1675,10 @@ exports.scanAndGetCabinets = async (req, res) => {
         .lean();
 
       if (cabinets.length === 0) {
+        console.log(
+          "ℹ️ [scanAndGetCabinets] Exact match found 0 cabinets, trying partial regex search for:",
+          companyName,
+        );
         cabinets = await Cabinet.find({
           companyName: { $regex: companyName, $options: "i" },
           isActive: true,
@@ -1650,6 +1688,12 @@ exports.scanAndGetCabinets = async (req, res) => {
       }
     }
 
+    console.log(
+      "✅ [scanAndGetCabinets] Step 2 Success: Found",
+      cabinets.length,
+      "cabinets for company",
+    );
+
     // 3. Common areas (matching the UI design)
     const commonAreas = [
       { id: "wash_room", name: "Wash Room", type: "Common" },
@@ -1657,6 +1701,11 @@ exports.scanAndGetCabinets = async (req, res) => {
       { id: "noc_room", name: "NOC Room", type: "Common" },
       { id: "loading_area", name: "Loading Area", type: "Common" },
     ];
+
+    console.log(
+      "✅ [scanAndGetCabinets] Step 3: Returning success response with visitor details & cabinets",
+    );
+    console.log("==========================================");
 
     res.status(200).json({
       success: true,
@@ -1684,7 +1733,10 @@ exports.scanAndGetCabinets = async (req, res) => {
       },
     });
   } catch (error) {
-    console.error("Error scanning QR for cabinets:", error);
+    console.error(
+      "💥 [scanAndGetCabinets] Error scanning QR for cabinets:",
+      error,
+    );
     res.status(500).json({
       success: false,
       message: "Error scanning QR and fetching cabinets",
