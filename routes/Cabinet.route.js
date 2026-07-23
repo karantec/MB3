@@ -24,7 +24,7 @@ router.get("/company/:companyName", cabinetController.getCabinetsByCompany);
 router.get("/", cabinetController.getAllCabinets);
 
 // GET /api/cabinets/:id - Get cabinet by ID
-router.get("/:id", protect, cabinetController.getCabinetById);
+router.get("/:id", cabinetController.getCabinetById);
 
 // Protected routes (Admin only)
 // POST /api/cabinets - Create a new cabinet
