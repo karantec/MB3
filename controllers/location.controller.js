@@ -38,6 +38,54 @@ const fetchAssetLocations = async () => {
   }
 };
 
+// const fetchMapDetails = async (mapId) => {
+//   try {
+//     const url = `${MIST_API_BASE}/sites/${MIST_SITE_ID}/maps/${mapId}`;
+//     console.log(`🗺️ Fetching map details for ${mapId}:`, url);
+//     const response = await axios.get(url, {
+//       headers: getMistHeaders(),
+//     });
+
+//     console.log("📋 Map details received:", {
+//       id: response.data.id,
+//       name: response.data.name,
+//       ppm: response.data.ppm,
+//       origin_x: response.data.origin_x,
+//       origin_y: response.data.origin_y,
+//       width: response.data.width,
+//       height: response.data.height,
+//     });
+
+//     return {
+//       id: response.data.id,
+//       name: response.data.name,
+//       width: response.data.width,
+//       height: response.data.height,
+//       ppm: response.data.ppm,
+//       origin_x: response.data.origin_x,
+//       origin_y: response.data.origin_y,
+//       orientation: response.data.orientation,
+//       created_time: response.data.created_time,
+//       modified_time: response.data.modified_time,
+//       type: response.data.type,
+//       width_m: response.data.width_m,
+//       height_m: response.data.height_m,
+//       site_id: response.data.site_id,
+//       org_id: response.data.org_id,
+//       url: response.data.url,
+//       thumbnail_url: response.data.thumbnail_url,
+//       mapstack_id: response.data.mapstack_id,
+//       mapstack_floor: response.data.mapstack_floor,
+//     };
+//   } catch (error) {
+//     console.error("❌ Map API Error:", error.response?.data || error.message);
+//     return null;
+//   }
+// };
+
+// ============================
+// FIXED: WAYFINDING PATH HELPERS
+// ============================
 const fetchMapDetails = async (mapId) => {
   try {
     const url = `${MIST_API_BASE}/sites/${MIST_SITE_ID}/maps/${mapId}`;
@@ -46,84 +94,142 @@ const fetchMapDetails = async (mapId) => {
       headers: getMistHeaders(),
     });
 
-    // Log the full response for debugging
+    const data = response.data;
+
     console.log("📋 Map details received:", {
-      id: response.data.id,
-      name: response.data.name,
-      ppm: response.data.ppm,
-      origin_x: response.data.origin_x,
-      origin_y: response.data.origin_y,
-      width: response.data.width,
-      height: response.data.height,
+      id: data.id,
+      name: data.name,
+      ppm: data.ppm,
+      origin_x: data.origin_x,
+      origin_y: data.origin_y,
+      width: data.width,
+      height: data.height,
+      hasWayfinding: !!data.wayfinding_path,
+      nodesCount: data.wayfinding_path?.nodes?.length || 0,
     });
 
-    // Return ALL map data including ppm, origin_x, origin_y
+    // Return ALL map data including wayfinding_path
     return {
-      id: response.data.id,
-      name: response.data.name,
-      width: response.data.width,
-      height: response.data.height,
-      ppm: response.data.ppm, // ← CRITICAL: Add this
-      origin_x: response.data.origin_x, // ← CRITICAL: Add this
-      origin_y: response.data.origin_y, // ← CRITICAL: Add this
-      orientation: response.data.orientation,
-      created_time: response.data.created_time,
-      modified_time: response.data.modified_time,
-      type: response.data.type,
-      width_m: response.data.width_m,
-      height_m: response.data.height_m,
-      site_id: response.data.site_id,
-      org_id: response.data.org_id,
-      url: response.data.url,
-      thumbnail_url: response.data.thumbnail_url,
-      mapstack_id: response.data.mapstack_id,
-      mapstack_floor: response.data.mapstack_floor,
+      id: data.id,
+      name: data.name,
+      width: data.width,
+      height: data.height,
+      ppm: data.ppm,
+      origin_x: data.origin_x,
+      origin_y: data.origin_y,
+      orientation: data.orientation,
+      created_time: data.created_time,
+      modified_time: data.modified_time,
+      type: data.type,
+      width_m: data.width_m,
+      height_m: data.height_m,
+      site_id: data.site_id,
+      org_id: data.org_id,
+      url: data.url,
+      thumbnail_url: data.thumbnail_url,
+      mapstack_id: data.mapstack_id,
+      mapstack_floor: data.mapstack_floor,
+      // CRITICAL: Include wayfinding_path from the map details
+      wayfinding_path: data.wayfinding_path || null,
+      wall_path: data.wall_path || null,
     };
   } catch (error) {
     console.error("❌ Map API Error:", error.response?.data || error.message);
     return null;
   }
 };
-
-// ============================
-// WAYFINDING PATH HELPERS
-// ============================
+/**
+ * Fetch wayfinding path for a specific map
+ * Handles different response formats from Mist API
+ */
+// controllers/location.controller.js
 
 /**
  * Fetch wayfinding path for a specific map
- * Returns nodes and edges that define the walkable path network
+ * Handles different response formats from Mist API
+ */
+// fetchWayfindingPath;
+// controllers/location.controller.js
+
+/**
+ * Fetch wayfinding path for a specific map
+ * Extracts from map details since Mist includes wayfinding_path in the map response
  */
 const fetchWayfindingPath = async (mapId) => {
   try {
-    const url = `${MIST_API_BASE}/sites/${MIST_SITE_ID}/maps/${mapId}/wayfinding_path`;
-    console.log(`🗺️ Fetching wayfinding path for map ${mapId}:`, url);
-    const response = await axios.get(url, {
-      headers: getMistHeaders(),
-    });
+    // Fetch map details (which now includes wayfinding_path)
+    const mapDetails = await fetchMapDetails(mapId);
 
-    // Log the structure for debugging
-    if (response.data && response.data.nodes) {
-      console.log(`✅ Found ${response.data.nodes.length} wayfinding nodes`);
-      console.log(
-        `✅ Found ${Object.keys(response.data.edges || {}).length} wayfinding edges`,
-      );
-    } else {
-      console.log(`⚠️ No wayfinding path data found for map ${mapId}`);
+    if (!mapDetails) {
+      console.log(`❌ Map ${mapId} not found`);
+      return null;
     }
 
-    return response.data;
-  } catch (error) {
-    console.error(
-      "❌ Wayfinding API Error:",
-      error.response?.data || error.message,
+    console.log(`🗺️ Checking map ${mapId} for wayfinding data...`);
+
+    // Check if wayfinding_path exists in the map details
+    if (!mapDetails.wayfinding_path) {
+      console.log(`⚠️ No wayfinding_path found in map ${mapId}`);
+      return null;
+    }
+
+    const wayfindingData = mapDetails.wayfinding_path;
+
+    // Validate the structure
+    if (
+      !wayfindingData.nodes ||
+      !Array.isArray(wayfindingData.nodes) ||
+      wayfindingData.nodes.length === 0
+    ) {
+      console.log(`⚠️ Wayfinding data has no nodes for map ${mapId}`);
+      return null;
+    }
+
+    console.log(
+      `✅ Found ${wayfindingData.nodes.length} wayfinding nodes in map details`,
     );
+
+    // Transform nodes to ensure edges are properly formatted
+    const transformedNodes = wayfindingData.nodes.map((node) => {
+      let edges = node.edges || {};
+
+      // If edges is an object with string values like {"N3": "1", "N1": "1"}
+      if (typeof edges === "object" && !Array.isArray(edges)) {
+        const edgeObj = {};
+        Object.keys(edges).forEach((key) => {
+          edgeObj[key] = { weight: parseInt(edges[key]) || 1 };
+        });
+        edges = edgeObj;
+      }
+
+      return {
+        ...node,
+        edges: edges,
+      };
+    });
+
+    // Build edges object
+    const edges = {};
+    transformedNodes.forEach((node) => {
+      edges[node.name] = node.edges || {};
+    });
+
+    const result = {
+      nodes: transformedNodes,
+      edges: edges,
+    };
+
+    console.log(`✅ Processed ${result.nodes.length} nodes with edges`);
+    console.log(`📋 Node names:`, result.nodes.map((n) => n.name).join(", "));
+
+    return result;
+  } catch (error) {
+    console.error("❌ Error fetching wayfinding path:", error.message);
     return null;
   }
 };
-
 /**
  * Find the nearest node on the wayfinding path to a given asset position
- * Returns the closest node that the asset could snap to
  */
 const findNearestNode = (wayfindingPath, assetX, assetY) => {
   if (
@@ -157,14 +263,12 @@ const findNearestNode = (wayfindingPath, assetX, assetY) => {
   return {
     node: nearestNode,
     distance: minDistance,
-    // If distance is large (> 1000 pixels), the asset might not be on a path
     isOnPath: minDistance < 1000,
   };
 };
 
 /**
  * Build a route from start node to destination node using BFS
- * Since Mist edges are unweighted (weight: 1), BFS works well
  */
 const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
   if (!wayfindingPath || !wayfindingPath.nodes || !wayfindingPath.edges) {
@@ -180,11 +284,13 @@ const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
   // Populate edges (bidirectional)
   Object.keys(wayfindingPath.edges).forEach((sourceName) => {
     const edgeData = wayfindingPath.edges[sourceName];
-    Object.keys(edgeData).forEach((targetName) => {
-      if (adjacency[sourceName]) {
-        adjacency[sourceName].push(targetName);
-      }
-    });
+    if (edgeData && typeof edgeData === "object") {
+      Object.keys(edgeData).forEach((targetName) => {
+        if (adjacency[sourceName]) {
+          adjacency[sourceName].push(targetName);
+        }
+      });
+    }
   });
 
   // BFS to find shortest path
@@ -196,7 +302,6 @@ const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
     const currentNode = path[path.length - 1];
 
     if (currentNode === destNodeName) {
-      // Found destination - build route with node details
       const routeNodes = path
         .map((nodeName) => {
           return wayfindingPath.nodes.find((n) => n.name === nodeName);
@@ -210,7 +315,6 @@ const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
       };
     }
 
-    // Explore neighbors
     const neighbors = adjacency[currentNode] || [];
     for (const neighbor of neighbors) {
       if (!visited.has(neighbor)) {
@@ -220,7 +324,6 @@ const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
     }
   }
 
-  // No route found
   return null;
 };
 
@@ -228,10 +331,6 @@ const findRoute = (wayfindingPath, startNodeName, destNodeName) => {
 // COORDINATE CONVERSION HELPERS
 // ============================
 
-/**
- * Convert Mist pixel coordinates to world coordinates
- * Useful for frontend Three.js rendering
- */
 const convertMistToWorld = (pixelX, pixelY, mapData) => {
   if (!mapData || !mapData.ppm || mapData.origin_x === undefined) {
     console.warn("⚠️ Missing map data for coordinate conversion");
@@ -240,20 +339,16 @@ const convertMistToWorld = (pixelX, pixelY, mapData) => {
 
   const { origin_x, origin_y, ppm } = mapData;
 
-  // Convert from pixel space to meters
   const realX = (pixelX - origin_x) / ppm;
-  const realZ = -(pixelY - origin_y) / ppm; // Flip Y for Three.js Z
+  const realZ = -(pixelY - origin_y) / ppm;
 
   return {
     x: realX,
     z: realZ,
-    y: 0.1, // Default height above floor
+    y: 0.1,
   };
 };
 
-/**
- * Convert wayfinding nodes to world coordinates
- */
 const convertWayfindingNodes = (nodes, mapData) => {
   if (!nodes || !mapData) return [];
 
@@ -263,7 +358,6 @@ const convertWayfindingNodes = (nodes, mapData) => {
       node.position.y,
       mapData,
     );
-
     return {
       ...node,
       worldPosition: worldPos,
@@ -275,18 +369,13 @@ const convertWayfindingNodes = (nodes, mapData) => {
 // GET VISITOR LOCATION WITH ROUTE
 // ============================
 
-/**
- * GET VISITOR ROUTE - Get current location and navigation route for visitor
- * GET /api/IDVisitor/visitors/:id/location
- */
 exports.getVisitorRoute = async (req, res) => {
   try {
     const { id } = req.params;
-    const { includePath = "true" } = req.query; // Optional query param to include path
+    const { includePath = "true" } = req.query;
 
     console.log("📍 Fetching location for visitor ID:", id);
 
-    // Validate ID format
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({
         success: false,
@@ -294,7 +383,6 @@ exports.getVisitorRoute = async (req, res) => {
       });
     }
 
-    // Find visitor
     const visitor = await QRModel.findById(id);
 
     if (!visitor) {
@@ -307,12 +395,10 @@ exports.getVisitorRoute = async (req, res) => {
     console.log("👤 Visitor found:", visitor.visitorName);
     console.log("🆔 ID Number:", visitor.idNumber || "(empty)");
 
-    // Check if visitor has an assigned cabinet/ID
     if (!visitor.idNumber || visitor.idNumber.trim() === "") {
       return res.status(404).json({
         success: false,
-        message:
-          "No ID/asset assigned to this visitor. Please update the visitor with an idNumber.",
+        message: "No ID/asset assigned to this visitor.",
         suggestion:
           "Use PUT /api/IDVisitor/visitors/:id/cabinet with { 'idNumber': 'Tag1' }",
         visitor: {
@@ -324,7 +410,6 @@ exports.getVisitorRoute = async (req, res) => {
       });
     }
 
-    // Fetch all asset locations from Mist
     console.log("📡 Fetching asset locations from Mist API...");
     let assets;
     try {
@@ -335,15 +420,12 @@ exports.getVisitorRoute = async (req, res) => {
         success: false,
         message: "Failed to fetch asset locations from Mist API",
         error: error.message,
-        suggestion: "Check your Mist API token and site ID in .env file",
       });
     }
 
-    // Log all asset names for debugging
     const assetNames = assets.map((a) => a.name).filter((name) => name);
     console.log("📋 Available assets:", assetNames.join(", "));
 
-    // Find the asset that matches the visitor's ID Number
     const matchedAsset = assets.find(
       (asset) =>
         asset.name === visitor.idNumber || asset.mac === visitor.idNumber,
@@ -362,34 +444,28 @@ exports.getVisitorRoute = async (req, res) => {
 
     console.log("✅ Asset found:", matchedAsset.name);
 
-    // Check if asset has location data
     if (!matchedAsset.x || !matchedAsset.y) {
       return res.status(404).json({
         success: false,
-        message: `Asset "${matchedAsset.name}" found but has no location data (x, y coordinates missing)`,
+        message: `Asset "${matchedAsset.name}" found but has no location data`,
         data: {
           name: matchedAsset.name,
           mac: matchedAsset.mac,
           last_seen: matchedAsset.last_seen,
           has_location: false,
-          suggestion: "The asset may be offline or not currently tracked",
         },
       });
     }
 
-    // Get map details if map_id exists
     let mapDetails = null;
     let wayfindingPath = null;
     let nearestNode = null;
     let routeToDestination = null;
-    let convertedNodes = null;
 
     if (matchedAsset.map_id) {
       try {
-        // Fetch map details
         mapDetails = await fetchMapDetails(matchedAsset.map_id);
 
-        // Fetch wayfinding path if requested
         if (includePath === "true") {
           wayfindingPath = await fetchWayfindingPath(matchedAsset.map_id);
 
@@ -398,28 +474,16 @@ exports.getVisitorRoute = async (req, res) => {
             wayfindingPath.nodes &&
             wayfindingPath.nodes.length > 0
           ) {
-            // Convert nodes to world coordinates for frontend
-            convertedNodes = convertWayfindingNodes(
-              wayfindingPath.nodes,
-              mapDetails,
-            );
+            const targetX = 5525.298750495607;
+            const targetY = 2491.837930104785;
 
-            // Find nearest node to the asset's current position
             nearestNode = findNearestNode(
               wayfindingPath,
               matchedAsset.x,
               matchedAsset.y,
             );
-
-            // Target coordinates (destination cabinet/room)
-            // You can make this dynamic based on the visitor's destination
-            const targetX = 5525.298750495607;
-            const targetY = 2491.837930104785;
-
-            // Find nearest node to the destination
             const destNode = findNearestNode(wayfindingPath, targetX, targetY);
 
-            // Find route from nearest node to destination node
             if (nearestNode && nearestNode.node && destNode && destNode.node) {
               routeToDestination = findRoute(
                 wayfindingPath,
@@ -434,11 +498,9 @@ exports.getVisitorRoute = async (req, res) => {
       }
     }
 
-    // Target coordinates (from your provided data)
     const targetX = 5525.298750495607;
     const targetY = 2491.837930104785;
 
-    // Calculate distance from target
     const distance =
       matchedAsset.x && matchedAsset.y
         ? Math.sqrt(
@@ -447,7 +509,6 @@ exports.getVisitorRoute = async (req, res) => {
           )
         : null;
 
-    // Determine proximity status
     const proximityStatus =
       distance !== null
         ? distance < 100
@@ -459,7 +520,6 @@ exports.getVisitorRoute = async (req, res) => {
               : "Far"
         : "Unknown";
 
-    // Prepare response data
     const locationData = {
       visitor: {
         id: visitor._id,
@@ -492,9 +552,9 @@ exports.getVisitorRoute = async (req, res) => {
             name: mapDetails.name,
             width: mapDetails.width,
             height: mapDetails.height,
-            ppm: mapDetails.ppm, // ← ADDED: Critical for coordinate conversion
-            origin_x: mapDetails.origin_x, // ← ADDED: Critical for coordinate conversion
-            origin_y: mapDetails.origin_y, // ← ADDED: Critical for coordinate conversion
+            ppm: mapDetails.ppm,
+            origin_x: mapDetails.origin_x,
+            origin_y: mapDetails.origin_y,
             orientation: mapDetails.orientation,
             width_m: mapDetails.width_m,
             height_m: mapDetails.height_m,
@@ -509,7 +569,6 @@ exports.getVisitorRoute = async (req, res) => {
       timestamp: new Date().toISOString(),
     };
 
-    // Add wayfinding data if available
     if (wayfindingPath && includePath === "true") {
       locationData.wayfinding = {
         total_nodes: wayfindingPath.nodes.length,
@@ -532,12 +591,10 @@ exports.getVisitorRoute = async (req, res) => {
               })),
             }
           : null,
-        // Full path data for rendering (with world coordinates)
         nodes: wayfindingPath.nodes.map((node) => ({
           name: node.name,
           position: node.position,
           edges: node.edges || {},
-          // Add world coordinates for Three.js
           worldPosition: convertMistToWorld(
             node.position.x,
             node.position.y,
@@ -565,9 +622,13 @@ exports.getVisitorRoute = async (req, res) => {
 };
 
 // ============================
-// GET WAYFINDING PATH ONLY
+// GET WAYFINDING PATH ONLY (FIXED)
 // ============================
 
+/**
+ * GET WAYFINDING PATH - Get the wayfinding path for a map
+ * GET /api/IDVisitor/maps/:mapId/wayfinding
+ */
 /**
  * GET WAYFINDING PATH - Get the wayfinding path for a map
  * GET /api/IDVisitor/maps/:mapId/wayfinding
@@ -588,14 +649,32 @@ exports.getWayfindingPath = async (req, res) => {
     // Fetch map details first for coordinate conversion
     const mapDetails = await fetchMapDetails(mapId);
 
+    if (!mapDetails) {
+      return res.status(404).json({
+        success: false,
+        message: "Map not found",
+        debug: { mapId },
+      });
+    }
+
     const wayfindingPath = await fetchWayfindingPath(mapId);
 
-    if (!wayfindingPath) {
+    if (
+      !wayfindingPath ||
+      !wayfindingPath.nodes ||
+      wayfindingPath.nodes.length === 0
+    ) {
       return res.status(404).json({
         success: false,
         message: "Wayfinding path not found for this map",
         suggestion:
           "Make sure wayfinding paths are drawn in the Mist dashboard",
+        debug: {
+          mapId: mapId,
+          mapName: mapDetails.name,
+          hasWayfinding: !!wayfindingPath,
+          nodesCount: wayfindingPath?.nodes?.length || 0,
+        },
       });
     }
 
@@ -607,23 +686,30 @@ exports.getWayfindingPath = async (req, res) => {
         : null,
     }));
 
+    // Build the response
+    const responseData = {
+      nodes: nodesWithWorldCoords,
+      edges: wayfindingPath.edges || {},
+      map: {
+        id: mapDetails.id,
+        name: mapDetails.name,
+        ppm: mapDetails.ppm,
+        origin_x: mapDetails.origin_x,
+        origin_y: mapDetails.origin_y,
+        width: mapDetails.width,
+        height: mapDetails.height,
+      },
+      total_nodes: nodesWithWorldCoords.length,
+      total_edges: Object.keys(wayfindingPath.edges || {}).length,
+    };
+
+    console.log(
+      `✅ Returning ${responseData.total_nodes} nodes with ${responseData.total_edges} edges`,
+    );
+
     res.status(200).json({
       success: true,
-      data: {
-        ...wayfindingPath,
-        nodes: nodesWithWorldCoords,
-        map: mapDetails
-          ? {
-              id: mapDetails.id,
-              name: mapDetails.name,
-              ppm: mapDetails.ppm,
-              origin_x: mapDetails.origin_x,
-              origin_y: mapDetails.origin_y,
-              width: mapDetails.width,
-              height: mapDetails.height,
-            }
-          : null,
-      },
+      data: responseData,
     });
   } catch (error) {
     console.error("❌ Error fetching wayfinding path:", error);
@@ -631,18 +717,96 @@ exports.getWayfindingPath = async (req, res) => {
       success: false,
       message: "Error fetching wayfinding path",
       error: error.message,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
+// exports.getWayfindingPath = async (req, res) => {
+//   try {
+//     const { mapId } = req.params;
+
+//     if (!mapId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Map ID is required",
+//       });
+//     }
+
+//     console.log("🗺️ Fetching wayfinding path for map:", mapId);
+
+//     // Fetch map details first for coordinate conversion
+//     const mapDetails = await fetchMapDetails(mapId);
+
+//     if (!mapDetails) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Map not found",
+//         debug: { mapId },
+//       });
+//     }
+
+//     const wayfindingPath = await fetchWayfindingPath(mapId);
+
+//     if (
+//       !wayfindingPath ||
+//       !wayfindingPath.nodes ||
+//       wayfindingPath.nodes.length === 0
+//     ) {
+//       return res.status(404).json({
+//         success: false,
+//         message: "Wayfinding path not found for this map",
+//         suggestion:
+//           "Make sure wayfinding paths are drawn in the Mist dashboard",
+//         debug: {
+//           mapId: mapId,
+//           mapName: mapDetails.name,
+//           hasWayfinding: !!wayfindingPath,
+//           nodesCount: wayfindingPath?.nodes?.length || 0,
+//         },
+//       });
+//     }
+
+//     // Add world coordinates to nodes
+//     const nodesWithWorldCoords = wayfindingPath.nodes.map((node) => ({
+//       ...node,
+//       worldPosition: mapDetails
+//         ? convertMistToWorld(node.position.x, node.position.y, mapDetails)
+//         : null,
+//     }));
+
+//     res.status(200).json({
+//       success: true,
+//       data: {
+//         nodes: nodesWithWorldCoords,
+//         edges: wayfindingPath.edges,
+//         map: {
+//           id: mapDetails.id,
+//           name: mapDetails.name,
+//           ppm: mapDetails.ppm,
+//           origin_x: mapDetails.origin_x,
+//           origin_y: mapDetails.origin_y,
+//           width: mapDetails.width,
+//           height: mapDetails.height,
+//         },
+//         total_nodes: nodesWithWorldCoords.length,
+//         total_edges: Object.keys(wayfindingPath.edges || {}).length,
+//       },
+//     });
+//   } catch (error) {
+//     console.error("❌ Error fetching wayfinding path:", error);
+//     res.status(500).json({
+//       success: false,
+//       message: "Error fetching wayfinding path",
+//       error: error.message,
+//       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+//     });
+//   }
+// };
 
 // ============================
 // GET ASSET NAVIGATION ROUTE
 // ============================
 
-/**
- * GET NAVIGATION ROUTE - Get route between two points on a map
- * GET /api/IDVisitor/maps/:mapId/route?fromX=&fromY=&toX=&toY=
- */
 exports.getNavigationRoute = async (req, res) => {
   try {
     const { mapId } = req.params;
@@ -668,10 +832,7 @@ exports.getNavigationRoute = async (req, res) => {
     console.log(`   From: (${fromX}, ${fromY})`);
     console.log(`   To: (${toX}, ${toY})`);
 
-    // Fetch map details
     const mapDetails = await fetchMapDetails(mapId);
-
-    // Fetch wayfinding path
     const wayfindingPath = await fetchWayfindingPath(mapId);
 
     if (
@@ -683,16 +844,19 @@ exports.getNavigationRoute = async (req, res) => {
         success: false,
         message: "No wayfinding path found for this map",
         suggestion: "Draw wayfinding paths in the Mist dashboard first",
+        debug: {
+          mapId: mapId,
+          hasWayfinding: !!wayfindingPath,
+          nodesCount: wayfindingPath?.nodes?.length || 0,
+        },
       });
     }
 
-    // Convert string params to numbers
     const startX = parseFloat(fromX);
     const startY = parseFloat(fromY);
     const endX = parseFloat(toX);
     const endY = parseFloat(toY);
 
-    // Find nearest nodes to start and end positions
     const startNode = findNearestNode(wayfindingPath, startX, startY);
     const endNode = findNearestNode(wayfindingPath, endX, endY);
 
@@ -700,6 +864,7 @@ exports.getNavigationRoute = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Could not find a wayfinding node near the start position",
+        debug: { startX, startY },
       });
     }
 
@@ -707,10 +872,10 @@ exports.getNavigationRoute = async (req, res) => {
       return res.status(404).json({
         success: false,
         message: "Could not find a wayfinding node near the end position",
+        debug: { endX, endY },
       });
     }
 
-    // Find route
     const route = findRoute(
       wayfindingPath,
       startNode.node.name,
@@ -726,7 +891,6 @@ exports.getNavigationRoute = async (req, res) => {
       });
     }
 
-    // Convert route nodes to world coordinates
     const routeNodesWithWorld = route.nodes.map((node) => ({
       ...node,
       worldPosition: mapDetails
@@ -792,10 +956,6 @@ exports.getNavigationRoute = async (req, res) => {
 // TEST COORDINATE CONVERSION
 // ============================
 
-/**
- * TEST COORDINATE CONVERSION - Debug endpoint
- * GET /api/IDVisitor/maps/:mapId/convert?x=&y=
- */
 exports.testCoordinateConversion = async (req, res) => {
   try {
     const { mapId } = req.params;
@@ -816,7 +976,6 @@ exports.testCoordinateConversion = async (req, res) => {
       });
     }
 
-    // Fetch map data
     const mapData = await fetchMapDetails(mapId);
 
     if (!mapData) {
@@ -828,8 +987,6 @@ exports.testCoordinateConversion = async (req, res) => {
 
     const pixelX = parseFloat(x);
     const pixelY = parseFloat(y);
-
-    // Convert to world coordinates
     const worldPos = convertMistToWorld(pixelX, pixelY, mapData);
 
     res.json({
@@ -867,17 +1024,12 @@ exports.testCoordinateConversion = async (req, res) => {
 // GET ALL ASSET LOCATIONS
 // ============================
 
-/**
- * GET ALL ASSET LOCATIONS - Get all asset locations from Mist
- * GET /api/IDVisitor/assets/locations
- */
 exports.getAllAssetLocations = async (req, res) => {
   try {
     console.log("📍 Fetching all asset locations...");
 
     const assets = await fetchAssetLocations();
 
-    // Filter assets with location data
     const locatedAssets = assets.filter(
       (asset) => asset.x !== undefined && asset.x !== null,
     );
@@ -904,10 +1056,6 @@ exports.getAllAssetLocations = async (req, res) => {
 // GET MAP DETAILS
 // ============================
 
-/**
- * GET MAP DETAILS - Get map details by ID
- * GET /api/IDVisitor/maps/:mapId
- */
 exports.getMapDetails = async (req, res) => {
   try {
     const { mapId } = req.params;
@@ -948,10 +1096,6 @@ exports.getMapDetails = async (req, res) => {
 // GET VISITOR CABINET
 // ============================
 
-/**
- * GET VISITOR CABINET - Get the cabinet/asset assigned to visitor
- * GET /api/IDVisitor/visitors/:id/cabinet
- */
 exports.getVisitorCabinet = async (req, res) => {
   try {
     const { id } = req.params;
@@ -980,10 +1124,8 @@ exports.getVisitorCabinet = async (req, res) => {
       });
     }
 
-    // Fetch all assets from Mist
     const assets = await fetchAssetLocations();
 
-    // Find the asset by name or MAC
     const cabinet = assets.find(
       (asset) =>
         asset.name === visitor.idNumber || asset.mac === visitor.idNumber,
@@ -997,7 +1139,6 @@ exports.getVisitorCabinet = async (req, res) => {
       });
     }
 
-    // Get map details
     let mapDetails = null;
     if (cabinet.map_id) {
       mapDetails = await fetchMapDetails(cabinet.map_id);
@@ -1050,10 +1191,6 @@ exports.getVisitorCabinet = async (req, res) => {
 // UPDATE VISITOR CABINET
 // ============================
 
-/**
- * UPDATE VISITOR CABINET - Assign a cabinet/asset to a visitor
- * PUT /api/IDVisitor/visitors/:id/cabinet
- */
 exports.updateVisitorCabinet = async (req, res) => {
   try {
     const { id } = req.params;
@@ -1084,7 +1221,6 @@ exports.updateVisitorCabinet = async (req, res) => {
 
     const newIdNumber = idNumber || assetName;
 
-    // Verify the asset exists in Mist
     try {
       const assets = await fetchAssetLocations();
       const assetExists = assets.some(
@@ -1100,10 +1236,8 @@ exports.updateVisitorCabinet = async (req, res) => {
       }
     } catch (error) {
       console.warn("⚠️ Could not verify asset in Mist:", error.message);
-      // Continue anyway - maybe Mist API is temporarily unavailable
     }
 
-    // Update visitor's idNumber
     visitor.idNumber = newIdNumber;
     await visitor.save();
 
