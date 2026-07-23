@@ -74,7 +74,8 @@ router.post("/visitors/:id/regenerate-qr", visitorController.regenerateQR);
 // LOCATION TRACKING ROUTES
 // ============================
 
-// Get visitor location
+// Get visitor location with optional wayfinding path
+// Query params: ?includePath=true|false (default: true)
 router.get("/visitors/:id/location", locationController.getVisitorRoute);
 
 // Get visitor cabinet/asset
@@ -90,9 +91,64 @@ router.get("/assets/locations", locationController.getAllAssetLocations);
 router.get("/maps/:mapId", locationController.getMapDetails);
 
 // ============================
-// DELETE OPERATIONS
+// NEW: WAYFINDING & NAVIGATION ROUTES
 // ============================
 
+/**
+ * Get wayfinding path for a specific map
+ * GET /api/IDVisitor/maps/:mapId/wayfinding
+ *
+ * Response: {
+ *   success: true,
+ *   data: {
+ *     nodes: [...],
+ *     edges: {...}
+ *   }
+ * }
+ */
+router.get("/maps/:mapId/wayfinding", locationController.getWayfindingPath);
+
+/**
+ * Get navigation route between two points on a map
+ * GET /api/IDVisitor/maps/:mapId/route?fromX=&fromY=&toX=&toY=
+ *
+ * Query params:
+ * - fromX: number (start X coordinate in pixels)
+ * - fromY: number (start Y coordinate in pixels)
+ * - toX: number (end X coordinate in pixels)
+ * - toY: number (end Y coordinate in pixels)
+ *
+ * Response: {
+ *   success: true,
+ *   data: {
+ *     start: {...},
+ *     end: {...},
+ *     route: {
+ *       path: [...nodeNames],
+ *       nodes: [...nodeObjects],
+ *       segments: number
+ *     },
+ *     wayfinding_path: {...} // full path for rendering
+ *   }
+ * }
+ *
+ * Example: /api/IDVisitor/maps/123/route?fromX=100&fromY=200&toX=500&toY=600
+ */
+router.get("/maps/:mapId/route", locationController.getNavigationRoute);
+
+/**
+ * Get detailed visitor location with full wayfinding data
+ * Alternative endpoint for mobile apps that need complete path data
+ * GET /api/IDVisitor/visitors/:id/navigation
+ *
+ * This returns the same as /location but with more detailed wayfinding info
+ */
+router.get("/visitors/:id/navigation", locationController.getVisitorRoute);
+
+// ============================
+// DELETE OPERATIONS
+// ============================
+router.get("/maps/:mapId/convert", locationController.testCoordinateConversion);
 // Delete single visitor
 router.delete("/visitors/:id", visitorController.deleteVisitor);
 
